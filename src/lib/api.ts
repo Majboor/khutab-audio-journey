@@ -38,11 +38,24 @@ const sampleSermons = [
 ];
 
 /**
+ * Function to check if the device is connected to the internet
+ */
+export const isOnline = (): boolean => {
+  return typeof navigator !== 'undefined' && navigator.onLine;
+};
+
+/**
  * Generate a new khutba sermon
  */
 export const generateKhutba = async (purpose: string, signal?: AbortSignal): Promise<Sermon> => {
   try {
     console.log(`Generating khutba for purpose: ${purpose}`);
+    
+    // First, check if we're online
+    if (!isOnline()) {
+      console.log("Device is offline, returning offline sermon");
+      throw new Error("network_offline");
+    }
     
     // Create a composite signal that combines the provided signal with a timeout
     let timeoutController: AbortController | null = null;
@@ -51,7 +64,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     if (!signal) {
       timeoutController = new AbortController();
       effectiveSignal = timeoutController.signal;
-      setTimeout(() => timeoutController?.abort(), 20000); // 20 seconds timeout
+      setTimeout(() => timeoutController?.abort(), 15000); // 15 seconds timeout (reduced from 20)
     }
     
     // Add network error detection and retry mechanism
@@ -133,8 +146,13 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     if (error instanceof Error) {
       errorMessage = error.message;
       
-      // Check for network errors
-      if (
+      // Check for explicit offline state
+      if (error.message === 'network_offline') {
+        errorType = 'network';
+        errorMessage = 'Your device is offline. Please check your internet connection.';
+      }
+      // Check for other network errors
+      else if (
         error.message.includes('Failed to fetch') || 
         error.message.includes('Network error') ||
         error.message.includes('network') ||
@@ -180,18 +198,20 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     const fallbackSermon = sampleSermons[randomIndex];
     
     // Add the purpose to the title to make it seem more relevant
-    const customizedTitle = `${fallbackSermon.title} - ${purpose.charAt(0).toUpperCase() + purpose.slice(1)}`;
+    const capitalizedPurpose = purpose.charAt(0).toUpperCase() + purpose.slice(1);
+    const customizedTitle = `${fallbackSermon.title} - ${capitalizedPurpose}`;
     
     toast.warning('Using sample sermon data as fallback', {
       description: 'Real sermon generation is unavailable at the moment.',
       duration: 5000,
     });
     
-    // Return fallback data
+    // Return fallback data with error information attached
     return {
       ...fallbackSermon,
       title: customizedTitle,
       purpose,
+      errorType: errorType,
     };
   }
 };

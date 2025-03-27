@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Sermon } from '@/lib/api';
 import SermonPlayer from '@/components/SermonPlayer';
 import useSermon from '@/hooks/useSermon';
-import { Loader, AlertTriangle, WifiOff, RotateCw, RefreshCw } from 'lucide-react';
+import { Loader, AlertTriangle, WifiOff, RotateCw, RefreshCw, Wifi } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,10 @@ const SermonPage = () => {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [purpose, setPurpose] = useState('patience');
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const [networkStatus, setNetworkStatus] = useState({
+    lastChecked: Date.now(),
+    isOnline: isOnline
+  });
 
   // Loading animation
   useEffect(() => {
@@ -56,18 +60,49 @@ const SermonPage = () => {
 
   // Network status monitoring
   useEffect(() => {
-    const handleOnline = () => {
+    // Update network status
+    setNetworkStatus(prev => ({
+      lastChecked: Date.now(),
+      isOnline: isOnline
+    }));
+    
+    // Handle status changes
+    if (!isOnline && networkStatus.isOnline) {
+      // Just went offline
+      toast.error('Network offline', {
+        description: 'Your device is offline. Please check your internet connection.',
+      });
+    } else if (isOnline && !networkStatus.isOnline) {
+      // Just came online
+      toast.success('Connection restored', {
+        description: 'Internet connection has been restored. You can retry generating the sermon.',
+      });
+      
+      // Clear network error if we just came back online
       if (showError && networkError) {
-        toast.success('Connection restored', {
-          description: 'Internet connection has been restored. You can retry generating the sermon.',
-        });
+        setShowError(null);
       }
+    }
+    
+    // Setup listeners for online/offline events
+    const handleOnline = () => {
+      toast.success('Connection restored', {
+        description: 'Internet connection has been restored. You can retry generating the sermon.',
+      });
+      setNetworkStatus(prev => ({
+        ...prev,
+        isOnline: true
+      }));
     };
 
     const handleOffline = () => {
       toast.error('Network offline', {
         description: 'Your device is offline. Please check your internet connection.',
       });
+      setNetworkStatus(prev => ({
+        ...prev,
+        isOnline: false
+      }));
     };
 
     window.addEventListener('online', handleOnline);
@@ -77,7 +112,24 @@ const SermonPage = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [showError, networkError]);
+  }, [isOnline, networkError, showError, networkStatus.isOnline]);
+
+  // Periodically check network status in the background
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // If we have a network error, check connectivity more frequently
+      const checkInterval = networkError ? 5000 : 15000; // 5 seconds if error, 15 seconds otherwise
+      
+      if (Date.now() - networkStatus.lastChecked > checkInterval) {
+        setNetworkStatus(prev => ({
+          lastChecked: Date.now(),
+          isOnline: navigator.onLine
+        }));
+      }
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [networkError, networkStatus.lastChecked]);
 
   const handleClose = () => {
     navigate('/');
@@ -119,6 +171,15 @@ const SermonPage = () => {
   };
 
   const handleRetry = async () => {
+    // If we're still offline, show a message but don't retry
+    if (!navigator.onLine) {
+      toast.error('Still Offline', {
+        description: 'You are still offline. Please check your internet connection before retrying.',
+        duration: 5000
+      });
+      return;
+    }
+    
     setGenerating(true);
     setShowError(null);
     setLoadingProgress(10);
@@ -147,6 +208,27 @@ const SermonPage = () => {
     toast.dismiss('retry-sermon-generation');
   };
 
+  const checkNetworkStatus = () => {
+    const isCurrentlyOnline = navigator.onLine;
+    
+    setNetworkStatus({
+      lastChecked: Date.now(),
+      isOnline: isCurrentlyOnline
+    });
+    
+    if (isCurrentlyOnline) {
+      toast.success('Network Check', {
+        description: 'Your device appears to be online. You can try generating a sermon now.',
+      });
+    } else {
+      toast.error('Network Check', {
+        description: 'Your device is still offline. Please check your internet connection.',
+      });
+    }
+    
+    return isCurrentlyOnline;
+  };
+
   if (showError && sermon) {
     toast.warning('Using backup sermon', {
       description: showError
@@ -170,7 +252,7 @@ const SermonPage = () => {
           <p className="text-sm text-white/70 mb-6">
             {networkError 
               ? 'Unable to connect to sermon server' 
-              : 'This may take 20-30 seconds'}
+              : 'This may take 15-20 seconds'}
           </p>
           
           <div className="w-full max-w-md mb-8">
@@ -183,40 +265,61 @@ const SermonPage = () => {
             )}
           </div>
           
-          {showError && (
+          {networkError && (
             <Alert variant="destructive" className="mt-4 bg-red-900/60 border-red-800 text-white">
               <div className="flex items-center mb-2">
                 <WifiOff className="h-5 w-5 mr-2" />
                 <AlertTitle>Connection Error</AlertTitle>
               </div>
               <AlertDescription className="mt-2 text-white/90">
-                {showError}
-                <div className="mt-4 flex justify-between">
-                  <Button 
-                    variant="outline" 
-                    className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-                    onClick={handleRetry}
-                  >
-                    {retryAttempt > 0 ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Try Again ({retryAttempt})
-                      </>
-                    ) : (
-                      <>
-                        <RotateCw className="h-4 w-4 mr-2" />
-                        Retry
-                      </>
-                    )}
-                  </Button>
+                Unable to connect to sermon server. Please check your internet connection.
+                
+                <div className="mt-4 flex flex-col gap-2">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center">
+                      <div className={`w-3 h-3 rounded-full mr-2 ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      <span className="text-sm">{isOnline ? 'Online' : 'Offline'}</span>
+                    </div>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                      onClick={checkNetworkStatus}
+                    >
+                      <Wifi className="h-3 w-3 mr-1" />
+                      Check Status
+                    </Button>
+                  </div>
                   
-                  <Button 
-                    variant="outline" 
-                    className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-                    onClick={handleClose}
-                  >
-                    Return Home
-                  </Button>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <Button 
+                      variant="outline" 
+                      className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                      onClick={handleRetry}
+                      disabled={!isOnline}
+                    >
+                      {retryAttempt > 0 ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Try Again ({retryAttempt})
+                        </>
+                      ) : (
+                        <>
+                          <RotateCw className="h-4 w-4 mr-2" />
+                          Retry
+                        </>
+                      )}
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                      onClick={handleClose}
+                    >
+                      Return Home
+                    </Button>
+                  </div>
                 </div>
               </AlertDescription>
             </Alert>
