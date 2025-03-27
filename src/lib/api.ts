@@ -65,16 +65,20 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     if (!signal) {
       timeoutController = new AbortController();
       effectiveSignal = timeoutController.signal;
-      setTimeout(() => timeoutController?.abort(), 15000); // 15 seconds timeout (reduced from 20)
+      // Reduce timeout to 10 seconds to improve perceived responsiveness
+      setTimeout(() => timeoutController?.abort(), 10000); 
     }
     
     // Add network error detection and retry mechanism
     let retryCount = 0;
-    const maxRetries = 1; // Only retry once
+    const maxRetries = 2; // Increase to 2 retries for better success chance
     let lastError: Error | null = null;
     
     while (retryCount <= maxRetries) {
       try {
+        // Log when attempting API calls, including retry information
+        console.log(`API attempt ${retryCount + 1}/${maxRetries + 1} for purpose: ${purpose}`);
+        
         // Attempt to call the API
         const response = await fetch(`${API_BASE_URL}/generate-khutab`, {
           method: 'POST',
@@ -114,18 +118,23 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
         console.error(`API attempt ${retryCount + 1} failed:`, lastError);
         
         // Check if we should retry
-        const isNetworkError = lastError.message.includes('Failed to fetch') || 
-                             lastError.message.includes('Network error') ||
-                             lastError.message.includes('network') ||
-                             lastError.message.includes('AbortError') ||
-                             lastError.message.includes('timed out') ||
-                             lastError.message.includes('abort');
+        const isNetworkError = 
+          lastError.message.includes('Failed to fetch') || 
+          lastError.message.includes('Network error') ||
+          lastError.message.includes('network') ||
+          lastError.message.includes('AbortError') ||
+          lastError.message.includes('timed out') ||
+          lastError.message.includes('abort') ||
+          // Add CORS error detection
+          lastError.message.includes('CORS') ||
+          lastError.message.includes('cross-origin');
                              
         if (isNetworkError && retryCount < maxRetries) {
           retryCount++;
-          console.log(`Retrying API call (attempt ${retryCount+1})`);
-          // Wait before retrying (500ms)
-          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log(`Retrying API call (attempt ${retryCount+1}/${maxRetries+1})`);
+          // Increase wait time between retries (exponential backoff)
+          const waitTime = 500 * Math.pow(2, retryCount-1);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
           continue;
         }
         
@@ -159,7 +168,9 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
         error.message.includes('network') ||
         error.message.includes('AbortError') ||
         error.message.includes('timed out') ||
-        error.message.includes('abort')
+        error.message.includes('abort') ||
+        error.message.includes('CORS') ||
+        error.message.includes('cross-origin')
       ) {
         errorType = 'network';
         errorMessage = 'Network connection error. Unable to reach sermon server.';
@@ -212,7 +223,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
       ...fallbackSermon,
       title: customizedTitle,
       purpose,
-      errorType: errorType,
+      errorType, // Here we're using the errorType directly (fixed the error)
     };
   }
 };
