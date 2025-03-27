@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Sermon } from '@/lib/api';
 import SermonPlayer from '@/components/SermonPlayer';
 import useSermon from '@/hooks/useSermon';
-import { Loader, AlertTriangle, WifiOff } from 'lucide-react';
+import { Loader, AlertTriangle, WifiOff, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -13,11 +13,12 @@ import { Progress } from '@/components/ui/progress';
 const SermonPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { generateSermon, loading, error } = useSermon();
+  const { generateSermon, retryGeneration, loading, error, networkError, retryCount } = useSermon();
   const [sermon, setSermon] = useState<Sermon | null>(null);
   const [generating, setGenerating] = useState(false);
   const [showError, setShowError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [purpose, setPurpose] = useState('patience');
 
   // Loading animation
   useEffect(() => {
@@ -42,6 +43,7 @@ const SermonPage = () => {
 
   useEffect(() => {
     if (location.state && 'audio_url' in location.state) {
+      setPurpose(location.state.purpose || 'patience');
       setSermon(location.state as Sermon);
     } else {
       handleGenerateNew();
@@ -64,7 +66,7 @@ const SermonPage = () => {
         id: 'new-sermon-generation'
       });
       
-      const newSermon = await generateSermon('patience');
+      const newSermon = await generateSermon(purpose);
       if (newSermon) {
         setSermon(newSermon);
         console.log("Sermon set with audio URL:", newSermon.fullAudioUrl || `https://islamicaudio.techrealm.online${newSermon.audio_url}`);
@@ -86,8 +88,31 @@ const SermonPage = () => {
     }
   };
 
+  const handleRetry = async () => {
+    setGenerating(true);
+    setShowError(null);
+    setLoadingProgress(10);
+    
+    toast.loading('Retrying sermon generation...', { 
+      description: 'Please wait while we try again.',
+      duration: Infinity,
+      id: 'retry-sermon-generation'
+    });
+    
+    const newSermon = await retryGeneration(purpose);
+    
+    if (newSermon) {
+      setSermon(newSermon);
+    } else {
+      setShowError('Network still unavailable. Using offline sermon instead.');
+    }
+    
+    setGenerating(false);
+    toast.dismiss('retry-sermon-generation');
+  };
+
   if (showError && sermon) {
-    toast.error('Using backup sermon', {
+    toast.warning('Using backup sermon', {
       description: showError
     });
   }
@@ -96,13 +121,30 @@ const SermonPage = () => {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-black">
         <div className="text-center text-white max-w-md px-4">
-          <Loader className="h-12 w-12 animate-spin mx-auto mb-6" />
-          <p className="text-lg font-medium mb-2">Generating sermon...</p>
-          <p className="text-sm text-white/70 mb-6">This may take 20-30 seconds</p>
+          {networkError ? (
+            <WifiOff className="h-12 w-12 mx-auto mb-6 text-red-500" />
+          ) : (
+            <Loader className="h-12 w-12 animate-spin mx-auto mb-6" />
+          )}
+          
+          <p className="text-lg font-medium mb-2">
+            {networkError ? 'Network Connection Error' : 'Generating sermon...'}
+          </p>
+          
+          <p className="text-sm text-white/70 mb-6">
+            {networkError 
+              ? 'Unable to connect to sermon server' 
+              : 'This may take 20-30 seconds'}
+          </p>
           
           <div className="w-full max-w-md mb-8">
-            <Progress value={loadingProgress} className="h-2 bg-white/10" />
-            <p className="text-xs text-white/50 mt-2 text-right">{Math.round(loadingProgress)}%</p>
+            <Progress 
+              value={networkError ? 100 : loadingProgress} 
+              className={`h-2 ${networkError ? 'bg-red-900/30' : 'bg-white/10'}`} 
+            />
+            {!networkError && (
+              <p className="text-xs text-white/50 mt-2 text-right">{Math.round(loadingProgress)}%</p>
+            )}
           </div>
           
           {showError && (
@@ -117,9 +159,10 @@ const SermonPage = () => {
                   <Button 
                     variant="outline" 
                     className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-                    onClick={handleGenerateNew}
+                    onClick={handleRetry}
                   >
-                    Try Again
+                    <RotateCw className="h-4 w-4 mr-2" />
+                    Retry {retryCount > 0 ? `(${retryCount})` : ''}
                   </Button>
                   
                   <Button 

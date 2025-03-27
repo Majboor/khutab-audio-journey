@@ -9,6 +9,7 @@ export interface Sermon {
   text: string;
   title: string;
   fullAudioUrl?: string; // We'll add this with the complete URL
+  purpose?: string;      // Track the purpose for retries
 }
 
 // Sample sermon data for fallback/development purposes
@@ -39,9 +40,19 @@ const sampleSermons = [
 /**
  * Generate a new khutba sermon
  */
-export const generateKhutba = async (purpose: string): Promise<Sermon> => {
+export const generateKhutba = async (purpose: string, signal?: AbortSignal): Promise<Sermon> => {
   try {
     console.log(`Generating khutba for purpose: ${purpose}`);
+    
+    // Create a composite signal that combines the provided signal with a timeout
+    let timeoutController: AbortController | null = null;
+    let effectiveSignal = signal;
+    
+    if (!signal) {
+      timeoutController = new AbortController();
+      effectiveSignal = timeoutController.signal;
+      setTimeout(() => timeoutController?.abort(), 20000); // 20 seconds timeout
+    }
     
     // Attempt to call the API
     const response = await fetch(`${API_BASE_URL}/generate-khutab`, {
@@ -50,9 +61,13 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ purpose }),
-      // Add timeout to prevent long waiting
-      signal: AbortSignal.timeout(15000), // 15 seconds timeout
+      signal: effectiveSignal,
     });
+
+    // Clean up timeout controller if we created one
+    if (timeoutController) {
+      timeoutController = null;
+    }
 
     if (!response.ok) {
       const errorData = await response.text();
@@ -62,6 +77,9 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
     }
 
     const data: Sermon = await response.json();
+    
+    // Store the purpose in the sermon object for potential retries
+    data.purpose = purpose;
     
     // Construct the full audio URL with the correct base URL
     if (data.audio_url) {
@@ -86,7 +104,8 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
         error.message.includes('Network error') ||
         error.message.includes('network') ||
         error.message.includes('AbortError') ||
-        error.message.includes('timed out')
+        error.message.includes('timed out') ||
+        error.message.includes('abort')
       ) {
         errorType = 'network';
         errorMessage = 'Network connection error. Unable to reach sermon server.';
@@ -137,6 +156,7 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
     return {
       ...fallbackSermon,
       title: customizedTitle,
+      purpose,
     };
   }
 };
