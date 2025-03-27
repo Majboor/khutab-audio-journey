@@ -36,12 +36,9 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
     });
 
     if (!response.ok) {
-      const errorMessage = `Server responded with ${response.status}: ${response.statusText}`;
+      const errorData = await response.text();
+      const errorMessage = `Server responded with ${response.status}: ${response.statusText}. ${errorData}`;
       console.error(errorMessage);
-      toast.error('API Error', {
-        description: errorMessage,
-        duration: 5000,
-      });
       throw new Error(errorMessage);
     }
 
@@ -54,15 +51,30 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
   } catch (error) {
     console.error('Error generating khutba:', error);
     
-    // Show error message in toast
-    toast.error('Failed to generate sermon', {
-      description: error instanceof Error ? error.message : 'Please try again later',
-      duration: 8000,
-    });
+    // Determine if it's a network error
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    const isNetworkError = error instanceof Error && 
+      (error.message.includes('Failed to fetch') || 
+       error.message.includes('Network error') ||
+       error.message.includes('network'));
+    
+    // Show specific error message based on error type
+    if (isNetworkError) {
+      toast.error('Network Connection Error', {
+        description: 'Unable to connect to sermon server. Please check your internet connection.',
+        duration: 8000,
+      });
+    } else {
+      // Show error message in toast
+      toast.error('Failed to generate sermon', {
+        description: errorMessage,
+        duration: 8000,
+      });
+    }
     
     // For development or when the API fails, return sample data
-    toast.warning('Using sample sermon data while API is unavailable', {
-      description: 'Real sermon generation will be available soon',
+    toast.warning('Using sample sermon data as fallback', {
+      description: 'Real sermon generation is unavailable at the moment.',
       duration: 5000,
     });
     

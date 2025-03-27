@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX } from 'lucide-react';
+import { X, Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 interface SermonPlayerProps {
   title: string;
@@ -11,6 +12,7 @@ interface SermonPlayerProps {
   audioUrl: string;
   onClose: () => void;
   onGenerateNew: () => void;
+  hasError?: boolean;
 }
 
 const SermonPlayer: React.FC<SermonPlayerProps> = ({
@@ -19,6 +21,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   audioUrl,
   onClose,
   onGenerateNew,
+  hasError = false,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -26,6 +29,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [audioError, setAudioError] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -60,13 +64,23 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     }
   };
 
+  // Handle audio error
+  const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
+    console.error('Audio playback error:', e);
+    setAudioError(true);
+    setIsPlaying(false);
+  };
+
   // Play/pause toggle
   const togglePlayPause = () => {
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play();
+        audioRef.current.play().catch(error => {
+          console.error('Error playing audio:', error);
+          setAudioError(true);
+        });
       }
       setIsPlaying(!isPlaying);
     }
@@ -118,9 +132,10 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
 
   // Auto-play when component mounts
   useEffect(() => {
-    if (audioRef.current) {
+    if (audioRef.current && !hasError) {
       audioRef.current.play().catch((error) => {
         console.error('Auto-play failed:', error);
+        setAudioError(true);
       });
       setIsPlaying(true);
     }
@@ -130,7 +145,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
         audioRef.current.pause();
       }
     };
-  }, []);
+  }, [hasError]);
 
   const VolumeIcon = isMuted ? VolumeX : volume > 0.5 ? Volume2 : Volume1;
 
@@ -183,6 +198,16 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
             {title}
           </h1>
           
+          {(hasError || audioError) && (
+            <Alert variant="destructive" className="mb-6 bg-red-900/60 border-red-800 text-white max-w-2xl">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Audio Error</AlertTitle>
+              <AlertDescription className="text-white/90">
+                There was a problem loading the audio. The sermon text is still available to read.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="max-w-2xl max-h-[40vh] overflow-auto glass p-6 rounded-xl text-white/90 animate-fade-in delay-100 mb-8">
             <p className="text-balance">{text}</p>
           </div>
@@ -196,6 +221,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onEnded={() => setIsPlaying(false)}
+            onError={handleAudioError}
             className="hidden"
           />
           
@@ -208,6 +234,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                 step={0.1}
                 onValueChange={handleSeek}
                 className="mx-4 flex-1"
+                disabled={audioError || hasError}
               />
               <span className="text-xs text-white/80">{formatTime(duration)}</span>
             </div>
@@ -219,6 +246,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                   size="icon" 
                   className="rounded-full text-white hover:bg-white/10"
                   onClick={toggleMute}
+                  disabled={audioError || hasError}
                 >
                   <VolumeIcon className="h-5 w-5" />
                 </Button>
@@ -228,6 +256,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                   step={0.01}
                   onValueChange={handleVolumeChange}
                   className="w-24"
+                  disabled={audioError || hasError}
                 />
               </div>
               
@@ -241,6 +270,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                       audioRef.current.currentTime = Math.max(0, currentTime - 10);
                     }
                   }}
+                  disabled={audioError || hasError}
                 >
                   <SkipBack className="h-5 w-5" />
                 </Button>
@@ -248,8 +278,9 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                 <Button 
                   variant="default" 
                   size="icon" 
-                  className="rounded-full h-12 w-12 bg-white text-black hover:bg-white/90"
+                  className={`rounded-full h-12 w-12 ${audioError || hasError ? 'bg-gray-500 text-white/70 cursor-not-allowed' : 'bg-white text-black hover:bg-white/90'}`}
                   onClick={togglePlayPause}
+                  disabled={audioError || hasError}
                 >
                   {isPlaying ? (
                     <Pause className="h-6 w-6" />
@@ -267,6 +298,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                       audioRef.current.currentTime = Math.min(duration, currentTime + 10);
                     }
                   }}
+                  disabled={audioError || hasError}
                 >
                   <SkipForward className="h-5 w-5" />
                 </Button>
