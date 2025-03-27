@@ -36,8 +36,13 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
     });
 
     if (!response.ok) {
-      console.error(`Server responded with ${response.status}: ${response.statusText}`);
-      throw new Error(`Server responded with ${response.status}`);
+      const errorMessage = `Server responded with ${response.status}: ${response.statusText}`;
+      console.error(errorMessage);
+      toast.error('API Error', {
+        description: errorMessage,
+        duration: 5000,
+      });
+      throw new Error(errorMessage);
     }
 
     const data: Sermon = await response.json();
@@ -48,6 +53,12 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
     return data;
   } catch (error) {
     console.error('Error generating khutba:', error);
+    
+    // Show error message in toast
+    toast.error('Failed to generate sermon', {
+      description: error instanceof Error ? error.message : 'Please try again later',
+      duration: 8000,
+    });
     
     // For development or when the API fails, return sample data
     toast.warning('Using sample sermon data while API is unavailable', {

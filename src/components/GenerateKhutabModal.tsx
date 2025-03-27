@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader } from 'lucide-react';
 import { generateKhutba } from '@/lib/api';
@@ -37,10 +37,18 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
   const handleGenerateKhutba = async () => {
     try {
       setLoading(true);
+      // Show loading toast
+      toast.loading('Generating your sermon...', {
+        description: 'This may take 20-30 seconds',
+        duration: Infinity, // Will be dismissed manually
+        id: 'sermon-generation'
+      });
+      
       // We're passing just the purpose value (one word) to the API
-      toast.loading('Generating your sermon...');
       const sermon = await generateKhutba(purpose);
-      toast.dismiss();
+      
+      // Dismiss the loading toast
+      toast.dismiss('sermon-generation');
       
       // Navigate to the sermon page with the sermon data
       navigate('/sermon', { state: sermon });
@@ -48,7 +56,10 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
       onOpenChange(false); // Close modal after successful generation
     } catch (error) {
       console.error('Error generating khutba:', error);
-      toast.dismiss();
+      // Dismiss the loading toast
+      toast.dismiss('sermon-generation');
+      
+      // Show error toast with UI toast for better visibility
       uiToast({
         title: 'Error',
         description: 'Failed to generate sermon. Please try again.',
@@ -64,13 +75,12 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
       <DialogContent className="sm:max-w-md animate-scale-in">
         <DialogHeader>
           <DialogTitle className="text-center text-2xl font-semibold mb-4">Generate Sermon</DialogTitle>
+          <DialogDescription className="text-center text-sm">
+            Select a theme for your sermon. Generation may take 20-30 seconds.
+          </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4 py-2">
-          <div className="text-sm text-muted-foreground text-center mb-4">
-            Select a theme for your sermon:
-          </div>
-          
           <div className="grid grid-cols-1 gap-2">
             {purposes.map((option) => (
               <Button

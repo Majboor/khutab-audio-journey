@@ -2,11 +2,12 @@
 import { useState } from 'react';
 import { Sermon, generateKhutba } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 export const useSermon = () => {
   const [sermon, setSermon] = useState<Sermon | null>(null);
   const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
 
   const generateSermon = async (purpose: string) => {
     try {
@@ -16,7 +17,7 @@ export const useSermon = () => {
       return newSermon;
     } catch (error) {
       console.error('Error generating sermon:', error);
-      toast({
+      uiToast({
         title: 'Error',
         description: 'Failed to generate sermon. Please try again.',
         variant: 'destructive',

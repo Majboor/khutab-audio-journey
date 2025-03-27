@@ -5,6 +5,7 @@ import { Sermon } from '@/lib/api';
 import SermonPlayer from '@/components/SermonPlayer';
 import useSermon from '@/hooks/useSermon';
 import { Loader } from 'lucide-react';
+import { toast } from 'sonner';
 
 const SermonPage = () => {
   const location = useLocation();
@@ -31,12 +32,26 @@ const SermonPage = () => {
     setGenerating(true);
     
     try {
+      toast.loading('Creating a new sermon...', { 
+        description: 'Please wait while we generate your sermon.',
+        duration: Infinity,
+        id: 'new-sermon-generation'
+      });
+      
       const newSermon = await generateSermon('patience');
       if (newSermon) {
         setSermon(newSermon);
       }
+      
+      toast.dismiss('new-sermon-generation');
+    } catch (error) {
+      console.error('Error generating new sermon:', error);
+      toast.error('Failed to generate new sermon', {
+        description: 'Please try again or select a different theme.'
+      });
     } finally {
       setGenerating(false);
+      toast.dismiss('new-sermon-generation');
     }
   };
 
@@ -46,7 +61,7 @@ const SermonPage = () => {
         <div className="text-center text-white">
           <Loader className="h-8 w-8 animate-spin mx-auto mb-4" />
           <p className="text-lg font-medium">Generating sermon...</p>
-          <p className="text-sm text-white/70 mt-2">This may take a moment</p>
+          <p className="text-sm text-white/70 mt-2">This may take 20-30 seconds</p>
         </div>
       </div>
     );
