@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Sermon } from '@/lib/api';
 import SermonPlayer from '@/components/SermonPlayer';
 import useSermon from '@/hooks/useSermon';
-import { Loader, AlertTriangle, WifiOff, RotateCw, RefreshCw, Wifi } from 'lucide-react';
+import { Loader, AlertTriangle, WifiOff, RotateCw, RefreshCw, Wifi, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -13,7 +12,7 @@ import { Progress } from '@/components/ui/progress';
 const SermonPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { generateSermon, retryGeneration, loading, error, networkError, retryCount, isOnline } = useSermon();
+  const { generateSermon, retryGeneration, loading: hookLoading, error: hookError, networkError: hookNetworkError, retryCount, isOnline } = useSermon();
   const [sermon, setSermon] = useState<Sermon | null>(null);
   const [generating, setGenerating] = useState(false);
   const [showError, setShowError] = useState<string | null>(null);
@@ -28,13 +27,10 @@ const SermonPage = () => {
   // Loading animation
   useEffect(() => {
     if (generating) {
-      // Reset progress when starting generation
       setLoadingProgress(10);
       
-      // Simulate progress during generation (purely visual feedback)
       const interval = setInterval(() => {
         setLoadingProgress((prev) => {
-          // Gradually increase up to 90% (final 10% when actually complete)
           if (prev >= 90) {
             clearInterval(interval);
             return 90;
@@ -60,31 +56,25 @@ const SermonPage = () => {
 
   // Network status monitoring
   useEffect(() => {
-    // Update network status
     setNetworkStatus(prev => ({
       lastChecked: Date.now(),
       isOnline: isOnline
     }));
     
-    // Handle status changes
     if (!isOnline && networkStatus.isOnline) {
-      // Just went offline
       toast.error('Network offline', {
         description: 'Your device is offline. Please check your internet connection.',
       });
     } else if (isOnline && !networkStatus.isOnline) {
-      // Just came online
       toast.success('Connection restored', {
         description: 'Internet connection has been restored. You can retry generating the sermon.',
       });
       
-      // Clear network error if we just came back online
-      if (showError && networkError) {
+      if (showError && hookNetworkError) {
         setShowError(null);
       }
     }
     
-    // Setup listeners for online/offline events
     const handleOnline = () => {
       toast.success('Connection restored', {
         description: 'Internet connection has been restored. You can retry generating the sermon.',
@@ -112,13 +102,12 @@ const SermonPage = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [isOnline, networkError, showError, networkStatus.isOnline]);
+  }, [isOnline, hookNetworkError, showError, networkStatus.isOnline]);
 
   // Periodically check network status in the background
   useEffect(() => {
     const interval = setInterval(() => {
-      // If we have a network error, check connectivity more frequently
-      const checkInterval = networkError ? 5000 : 15000; // 5 seconds if error, 15 seconds otherwise
+      const checkInterval = hookNetworkError ? 5000 : 15000;
       
       if (Date.now() - networkStatus.lastChecked > checkInterval) {
         setNetworkStatus(prev => ({
@@ -129,7 +118,7 @@ const SermonPage = () => {
     }, 5000);
     
     return () => clearInterval(interval);
-  }, [networkError, networkStatus.lastChecked]);
+  }, [hookNetworkError, networkStatus.lastChecked]);
 
   const handleClose = () => {
     navigate('/');
@@ -138,7 +127,7 @@ const SermonPage = () => {
   const handleGenerateNew = async () => {
     setGenerating(true);
     setShowError(null);
-    setLoadingProgress(10); // Start progress at 10%
+    setLoadingProgress(10);
     
     try {
       toast.loading('Creating a new sermon...', { 
@@ -151,7 +140,7 @@ const SermonPage = () => {
       if (newSermon) {
         setSermon(newSermon);
         console.log("Sermon set with audio URL:", newSermon.fullAudioUrl || `https://islamicaudio.techrealm.online${newSermon.audio_url}`);
-        setRetryAttempt(0); // Reset retry attempts on success
+        setRetryAttempt(0);
       } else {
         setShowError('Failed to generate sermon. Please try again.');
       }
@@ -171,7 +160,6 @@ const SermonPage = () => {
   };
 
   const handleRetry = async () => {
-    // If we're still offline, show a message but don't retry
     if (!navigator.onLine) {
       toast.error('Still Offline', {
         description: 'You are still offline. Please check your internet connection before retrying.',
@@ -229,6 +217,10 @@ const SermonPage = () => {
     return isCurrentlyOnline;
   };
 
+  const openAPIEndpoint = () => {
+    window.open('https://islamicaudio.techrealm.online/generate-khutab', '_blank');
+  };
+
   if (showError && sermon) {
     toast.warning('Using backup sermon', {
       description: showError
@@ -239,33 +231,33 @@ const SermonPage = () => {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-black">
         <div className="text-center text-white max-w-md px-4">
-          {networkError ? (
+          {hookNetworkError ? (
             <WifiOff className="h-12 w-12 mx-auto mb-6 text-red-500" />
           ) : (
             <Loader className="h-12 w-12 animate-spin mx-auto mb-6" />
           )}
           
           <p className="text-lg font-medium mb-2">
-            {networkError ? 'Network Connection Error' : 'Generating sermon...'}
+            {hookNetworkError ? 'Network Connection Error' : 'Generating sermon...'}
           </p>
           
           <p className="text-sm text-white/70 mb-6">
-            {networkError 
+            {hookNetworkError 
               ? 'Unable to connect to sermon server' 
               : 'This may take 15-20 seconds'}
           </p>
           
           <div className="w-full max-w-md mb-8">
             <Progress 
-              value={networkError ? 100 : loadingProgress} 
-              className={`h-2 ${networkError ? 'bg-red-900/30' : 'bg-white/10'}`} 
+              value={hookNetworkError ? 100 : loadingProgress} 
+              className={`h-2 ${hookNetworkError ? 'bg-red-900/30' : 'bg-white/10'}`} 
             />
-            {!networkError && (
+            {!hookNetworkError && (
               <p className="text-xs text-white/50 mt-2 text-right">{Math.round(loadingProgress)}%</p>
             )}
           </div>
           
-          {networkError && (
+          {hookNetworkError && (
             <Alert variant="destructive" className="mt-4 bg-red-900/60 border-red-800 text-white">
               <div className="flex items-center mb-2">
                 <WifiOff className="h-5 w-5 mr-2" />
@@ -289,6 +281,18 @@ const SermonPage = () => {
                     >
                       <Wifi className="h-3 w-3 mr-1" />
                       Check Status
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between mt-2 text-xs text-white/70">
+                    <span>API Endpoint:</span>
+                    <Button 
+                      variant="link" 
+                      size="sm" 
+                      className="h-auto p-0 text-white/90"
+                      onClick={openAPIEndpoint}
+                    >
+                      Check API <ExternalLink className="h-3 w-3 ml-1" />
                     </Button>
                   </div>
                   

@@ -10,7 +10,7 @@ export interface Sermon {
   title: string;
   fullAudioUrl?: string; // We'll add this with the complete URL
   purpose?: string;      // Track the purpose for retries
-  errorType?: 'network' | 'server' | 'other'; // Add the errorType property
+  errorType?: 'network' | 'server' | 'other'; // Error type property
 }
 
 // Sample sermon data for fallback/development purposes
@@ -71,20 +71,31 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     
     // Add network error detection and retry mechanism
     let retryCount = 0;
-    const maxRetries = 3; // Increase to 3 retries for better success chance
+    const maxRetries = 3;
     let lastError: Error | null = null;
     
     // Debugging: Log API endpoint
     console.log(`Attempting to call API at: ${API_BASE_URL}/generate-khutab`);
+    
+    // Try multiple CORS proxies in case one fails
+    const corsProxies = [
+      (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      (url: string) => `https://cors-anywhere.herokuapp.com/${url}`,
+      (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+    ];
     
     while (retryCount <= maxRetries) {
       try {
         // Log when attempting API calls, including retry information
         console.log(`API attempt ${retryCount + 1}/${maxRetries + 1} for purpose: ${purpose}`);
         
-        // Attempt to call the API with fetch directly (avoiding proxy issues)
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(`${API_BASE_URL}/generate-khutab`)}`;
+        // Select a proxy based on retry count (try different proxies)
+        const proxyIndex = retryCount % corsProxies.length;
+        const proxyUrl = corsProxies[proxyIndex](`${API_BASE_URL}/generate-khutab`);
         
+        console.log(`Trying proxy: ${proxyUrl}`);
+        
+        // Attempt direct fetch first if it's the first try
         const response = await fetch(proxyUrl, {
           method: 'POST',
           headers: {
@@ -134,9 +145,10 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           lastError.message.includes('timed out') ||
           lastError.message.includes('abort') ||
           lastError.message.includes('CORS') ||
-          lastError.message.includes('cross-origin');
+          lastError.message.includes('cross-origin') ||
+          lastError.message.includes('blocked');
                              
-        if (isNetworkError && retryCount < maxRetries) {
+        if ((isNetworkError || retryCount < 1) && retryCount < maxRetries) {
           retryCount++;
           console.log(`Retrying API call (attempt ${retryCount+1}/${maxRetries+1})`);
           // Increase wait time between retries (exponential backoff)
