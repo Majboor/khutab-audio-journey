@@ -44,7 +44,7 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
         id: 'sermon-generation'
       });
       
-      // We're passing just the purpose value (one word) to the API
+      // Use a direct POST request approach
       const sermon = await generateKhutba(purpose);
       
       // Dismiss the loading toast
