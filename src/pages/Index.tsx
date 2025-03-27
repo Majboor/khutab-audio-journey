@@ -48,8 +48,8 @@ const Index = () => {
   const { loading, generateSermon } = useSermon();
   const navigate = useNavigate();
 
-  const handleCategoryClick = (category: string) => {
-    setSelectedCategory(category);
+  const handleCategoryClick = (categoryValue: string) => {
+    setSelectedCategory(categoryValue);
     setIsModalOpen(true);
   };
 

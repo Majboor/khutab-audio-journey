@@ -19,7 +19,7 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
   selectedCategory
 }) => {
   const [loading, setLoading] = useState(false);
-  const [purpose, setPurpose] = useState(selectedCategory?.toLowerCase() || 'patience');
+  const [purpose, setPurpose] = useState(selectedCategory || 'patience');
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -36,6 +36,7 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
   const handleGenerateKhutba = async () => {
     try {
       setLoading(true);
+      // We're passing just the purpose value (one word) to the API
       const sermon = await generateKhutba(purpose);
       
       // Navigate to the sermon page with the sermon data
