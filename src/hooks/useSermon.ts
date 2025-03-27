@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sermon, generateKhutba } from '@/lib/api';
 import { toast } from 'sonner';
 
@@ -9,12 +9,24 @@ export const useSermon = () => {
   const [error, setError] = useState<string | null>(null);
   const [networkError, setNetworkError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [lastAttemptTime, setLastAttemptTime] = useState<number | null>(null);
+
+  // Reset network error if it's been more than 15 seconds since the last attempt
+  useEffect(() => {
+    if (networkError && lastAttemptTime) {
+      const now = Date.now();
+      if (now - lastAttemptTime > 15000) { // 15 seconds
+        setNetworkError(false);
+      }
+    }
+  }, [networkError, lastAttemptTime]);
 
   const generateSermon = async (purpose: string) => {
     try {
       setLoading(true);
       setError(null);
       setNetworkError(false);
+      setLastAttemptTime(Date.now());
       
       // Add a timeout for the API call (30 seconds max)
       const controller = new AbortController();
@@ -65,6 +77,11 @@ export const useSermon = () => {
     return generateSermon(purpose);
   };
 
+  // Check online status
+  const checkOnlineStatus = () => {
+    return navigator.onLine;
+  };
+
   return {
     sermon,
     loading,
@@ -73,6 +90,7 @@ export const useSermon = () => {
     retryCount,
     generateSermon,
     retryGeneration,
+    isOnline: checkOnlineStatus(),
   };
 };
 

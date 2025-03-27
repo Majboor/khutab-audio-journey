@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Sermon } from '@/lib/api';
 import SermonPlayer from '@/components/SermonPlayer';
 import useSermon from '@/hooks/useSermon';
-import { Loader, AlertTriangle, WifiOff, RotateCw } from 'lucide-react';
+import { Loader, AlertTriangle, WifiOff, RotateCw, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -13,16 +13,20 @@ import { Progress } from '@/components/ui/progress';
 const SermonPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { generateSermon, retryGeneration, loading, error, networkError, retryCount } = useSermon();
+  const { generateSermon, retryGeneration, loading, error, networkError, retryCount, isOnline } = useSermon();
   const [sermon, setSermon] = useState<Sermon | null>(null);
   const [generating, setGenerating] = useState(false);
   const [showError, setShowError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [purpose, setPurpose] = useState('patience');
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   // Loading animation
   useEffect(() => {
     if (generating) {
+      // Reset progress when starting generation
+      setLoadingProgress(10);
+      
       // Simulate progress during generation (purely visual feedback)
       const interval = setInterval(() => {
         setLoadingProgress((prev) => {
@@ -50,6 +54,31 @@ const SermonPage = () => {
     }
   }, [location]);
 
+  // Network status monitoring
+  useEffect(() => {
+    const handleOnline = () => {
+      if (showError && networkError) {
+        toast.success('Connection restored', {
+          description: 'Internet connection has been restored. You can retry generating the sermon.',
+        });
+      }
+    };
+
+    const handleOffline = () => {
+      toast.error('Network offline', {
+        description: 'Your device is offline. Please check your internet connection.',
+      });
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [showError, networkError]);
+
   const handleClose = () => {
     navigate('/');
   };
@@ -70,6 +99,7 @@ const SermonPage = () => {
       if (newSermon) {
         setSermon(newSermon);
         console.log("Sermon set with audio URL:", newSermon.fullAudioUrl || `https://islamicaudio.techrealm.online${newSermon.audio_url}`);
+        setRetryAttempt(0); // Reset retry attempts on success
       } else {
         setShowError('Failed to generate sermon. Please try again.');
       }
@@ -92,6 +122,7 @@ const SermonPage = () => {
     setGenerating(true);
     setShowError(null);
     setLoadingProgress(10);
+    setRetryAttempt(prev => prev + 1);
     
     toast.loading('Retrying sermon generation...', { 
       description: 'Please wait while we try again.',
@@ -103,8 +134,13 @@ const SermonPage = () => {
     
     if (newSermon) {
       setSermon(newSermon);
+      toast.success('Sermon generated successfully', {
+        description: 'Your sermon is now ready to play.',
+      });
     } else {
-      setShowError('Network still unavailable. Using offline sermon instead.');
+      setShowError(retryAttempt >= 2 
+        ? 'Multiple retry attempts failed. Using offline sermon instead.' 
+        : 'Network still unavailable. Please check your connection and try again.');
     }
     
     setGenerating(false);
@@ -161,8 +197,17 @@ const SermonPage = () => {
                     className="bg-white/10 border-white/30 text-white hover:bg-white/20"
                     onClick={handleRetry}
                   >
-                    <RotateCw className="h-4 w-4 mr-2" />
-                    Retry {retryCount > 0 ? `(${retryCount})` : ''}
+                    {retryAttempt > 0 ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Try Again ({retryAttempt})
+                      </>
+                    ) : (
+                      <>
+                        <RotateCw className="h-4 w-4 mr-2" />
+                        Retry
+                      </>
+                    )}
                   </Button>
                   
                   <Button 

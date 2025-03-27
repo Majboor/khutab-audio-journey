@@ -54,40 +54,75 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
       setTimeout(() => timeoutController?.abort(), 20000); // 20 seconds timeout
     }
     
-    // Attempt to call the API
-    const response = await fetch(`${API_BASE_URL}/generate-khutab`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ purpose }),
-      signal: effectiveSignal,
-    });
-
-    // Clean up timeout controller if we created one
-    if (timeoutController) {
-      timeoutController = null;
-    }
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      const errorMessage = `Server responded with ${response.status}: ${response.statusText}. ${errorData}`;
-      console.error(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    const data: Sermon = await response.json();
+    // Add network error detection and retry mechanism
+    let retryCount = 0;
+    const maxRetries = 1; // Only retry once
+    let lastError: Error | null = null;
     
-    // Store the purpose in the sermon object for potential retries
-    data.purpose = purpose;
-    
-    // Construct the full audio URL with the correct base URL
-    if (data.audio_url) {
-      data.fullAudioUrl = `${API_BASE_URL}${data.audio_url}`;
-      console.log("Full audio URL:", data.fullAudioUrl);
+    while (retryCount <= maxRetries) {
+      try {
+        // Attempt to call the API
+        const response = await fetch(`${API_BASE_URL}/generate-khutab`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ purpose }),
+          signal: effectiveSignal,
+        });
+
+        // Clean up timeout controller if we created one
+        if (timeoutController) {
+          timeoutController = null;
+        }
+
+        if (!response.ok) {
+          const errorData = await response.text();
+          const errorMessage = `Server responded with ${response.status}: ${response.statusText}. ${errorData}`;
+          console.error(errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        const data: Sermon = await response.json();
+        
+        // Store the purpose in the sermon object for potential retries
+        data.purpose = purpose;
+        
+        // Construct the full audio URL with the correct base URL
+        if (data.audio_url) {
+          data.fullAudioUrl = `${API_BASE_URL}${data.audio_url}`;
+          console.log("Full audio URL:", data.fullAudioUrl);
+        }
+        
+        return data;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        console.error(`API attempt ${retryCount + 1} failed:`, lastError);
+        
+        // Check if we should retry
+        const isNetworkError = lastError.message.includes('Failed to fetch') || 
+                             lastError.message.includes('Network error') ||
+                             lastError.message.includes('network') ||
+                             lastError.message.includes('AbortError') ||
+                             lastError.message.includes('timed out') ||
+                             lastError.message.includes('abort');
+                             
+        if (isNetworkError && retryCount < maxRetries) {
+          retryCount++;
+          console.log(`Retrying API call (attempt ${retryCount+1})`);
+          // Wait before retrying (500ms)
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+        
+        // If we get here, either it's not a network error or we've reached max retries
+        throw lastError;
+      }
     }
     
-    return data;
+    // This code shouldn't be reached due to the while loop and throw above
+    throw lastError || new Error('Unknown error occurred');
+    
   } catch (error) {
     console.error('Error generating khutba:', error);
     
