@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Sermon } from '@/lib/api';
@@ -42,6 +43,7 @@ const SermonPage = () => {
       const newSermon = await generateSermon('patience');
       if (newSermon) {
         setSermon(newSermon);
+        console.log("Sermon set with audio URL:", newSermon.fullAudioUrl || `https://islamicaudio.techrealm.online${newSermon.audio_url}`);
       } else {
         setShowError('Failed to generate sermon. Please try again.');
       }
@@ -97,11 +99,14 @@ const SermonPage = () => {
     );
   }
 
+  const audioUrl = sermon.fullAudioUrl || `https://islamicaudio.techrealm.online${sermon.audio_url}`;
+  console.log("Final audio URL being passed to SermonPlayer:", audioUrl);
+
   return (
     <SermonPlayer
       title={sermon.title}
       text={sermon.text}
-      audioUrl={sermon.fullAudioUrl || `https://islamicaudio.techrealm.online${sermon.audio_url}`}
+      audioUrl={audioUrl}
       onClose={handleClose}
       onGenerateNew={handleGenerateNew}
       hasError={!!showError}

@@ -13,10 +13,10 @@ export interface Sermon {
 
 // Sample sermon data for fallback/development purposes
 const sampleSermon: Sermon = {
-  audio_url: "/audio/sermon_sample.wav",
+  audio_url: "/audio/the-transformative-power-of-patience-a-journey-of-self-discovery-and-unity_with_background.wav",
   text: "In the name of Allah, the Most Gracious, the Most Merciful. Today, we reflect on the virtue of patience in Islam. Patience, or 'sabr' in Arabic, is mentioned over 90 times in the Quran, highlighting its significance in our faith. The Prophet Muhammad (peace be upon him) said, 'Patience is light.' Through patience, we find strength in hardship, clarity in confusion, and peace in turmoil. Let us remember that Allah is with those who are patient, as mentioned in Surah Al-Baqarah: 'O you who have believed, seek help through patience and prayer. Indeed, Allah is with the patient.' As we face life's challenges, let us cultivate patience in our hearts, knowing that with every difficulty comes ease.",
   title: "The Virtue of Patience in Islam",
-  fullAudioUrl: "https://islamicaudio.techrealm.online/audio/sermon_sample.wav"
+  fullAudioUrl: "https://islamicaudio.techrealm.online/audio/the-transformative-power-of-patience-a-journey-of-self-discovery-and-unity_with_background.wav"
 };
 
 /**
@@ -44,8 +44,11 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
 
     const data: Sermon = await response.json();
     
-    // Construct the full audio URL
-    data.fullAudioUrl = `${API_BASE_URL}${data.audio_url}`;
+    // Construct the full audio URL with the correct base URL
+    if (data.audio_url) {
+      data.fullAudioUrl = `${API_BASE_URL}${data.audio_url}`;
+      console.log("Full audio URL:", data.fullAudioUrl);
+    }
     
     return data;
   } catch (error) {
@@ -78,7 +81,7 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
       duration: 5000,
     });
     
-    // Return sample data as fallback
+    // Return sample data as fallback with the correct audio URL
     return {
       ...sampleSermon,
       title: `${sampleSermon.title} - ${purpose.charAt(0).toUpperCase() + purpose.slice(1)}`,

@@ -30,6 +30,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   const [isMuted, setIsMuted] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [audioError, setAudioError] = useState(false);
+  const [audioLoading, setAudioLoading] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -38,6 +39,11 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     'https://cdn.pixabay.com/video/2020/03/07/33348-397122062_tiny.jpg',
     'https://ak.picdn.net/shutterstock/videos/3396445667/thumb/1.jpg',
   ];
+
+  // Log the audio URL when it changes
+  useEffect(() => {
+    console.log("SermonPlayer received audioUrl:", audioUrl);
+  }, [audioUrl]);
 
   // Handle slideshow transition
   useEffect(() => {
@@ -61,13 +67,23 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
       setDuration(audioRef.current.duration);
+      setAudioLoading(false);
+      console.log("Audio loaded successfully, duration:", audioRef.current.duration);
     }
+  };
+
+  // Handle audio loaded data
+  const handleLoadedData = () => {
+    setAudioLoading(false);
+    setAudioError(false);
+    console.log("Audio data loaded successfully");
   };
 
   // Handle audio error
   const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
     console.error('Audio playback error:', e);
     setAudioError(true);
+    setAudioLoading(false);
     setIsPlaying(false);
   };
 
@@ -133,19 +149,29 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   // Auto-play when component mounts
   useEffect(() => {
     if (audioRef.current && !hasError) {
-      audioRef.current.play().catch((error) => {
-        console.error('Auto-play failed:', error);
-        setAudioError(true);
-      });
-      setIsPlaying(true);
+      // Reset error state when audio URL changes
+      setAudioError(false);
+      setAudioLoading(true);
+      
+      // Try to play the audio after a short delay to ensure the audio element has loaded
+      const playTimer = setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.play().catch((error) => {
+            console.error('Auto-play failed:', error);
+            setAudioError(true);
+          });
+          setIsPlaying(true);
+        }
+      }, 1000);
+      
+      return () => {
+        clearTimeout(playTimer);
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+      };
     }
-    
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-    };
-  }, [hasError]);
+  }, [hasError, audioUrl]);
 
   const VolumeIcon = isMuted ? VolumeX : volume > 0.5 ? Volume2 : Volume1;
 
@@ -220,8 +246,10 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
             src={audioUrl}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
+            onLoadedData={handleLoadedData}
             onEnded={() => setIsPlaying(false)}
             onError={handleAudioError}
+            preload="auto"
             className="hidden"
           />
           
@@ -234,7 +262,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                 step={0.1}
                 onValueChange={handleSeek}
                 className="mx-4 flex-1"
-                disabled={audioError || hasError}
+                disabled={audioError || hasError || audioLoading}
               />
               <span className="text-xs text-white/80">{formatTime(duration)}</span>
             </div>
@@ -246,7 +274,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                   size="icon" 
                   className="rounded-full text-white hover:bg-white/10"
                   onClick={toggleMute}
-                  disabled={audioError || hasError}
+                  disabled={audioError || hasError || audioLoading}
                 >
                   <VolumeIcon className="h-5 w-5" />
                 </Button>
@@ -256,7 +284,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                   step={0.01}
                   onValueChange={handleVolumeChange}
                   className="w-24"
-                  disabled={audioError || hasError}
+                  disabled={audioError || hasError || audioLoading}
                 />
               </div>
               
@@ -270,7 +298,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                       audioRef.current.currentTime = Math.max(0, currentTime - 10);
                     }
                   }}
-                  disabled={audioError || hasError}
+                  disabled={audioError || hasError || audioLoading}
                 >
                   <SkipBack className="h-5 w-5" />
                 </Button>
@@ -278,9 +306,9 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                 <Button 
                   variant="default" 
                   size="icon" 
-                  className={`rounded-full h-12 w-12 ${audioError || hasError ? 'bg-gray-500 text-white/70 cursor-not-allowed' : 'bg-white text-black hover:bg-white/90'}`}
+                  className={`rounded-full h-12 w-12 ${audioError || hasError || audioLoading ? 'bg-gray-500 text-white/70 cursor-not-allowed' : 'bg-white text-black hover:bg-white/90'}`}
                   onClick={togglePlayPause}
-                  disabled={audioError || hasError}
+                  disabled={audioError || hasError || audioLoading}
                 >
                   {isPlaying ? (
                     <Pause className="h-6 w-6" />
@@ -298,7 +326,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                       audioRef.current.currentTime = Math.min(duration, currentTime + 10);
                     }
                   }}
-                  disabled={audioError || hasError}
+                  disabled={audioError || hasError || audioLoading}
                 >
                   <SkipForward className="h-5 w-5" />
                 </Button>
