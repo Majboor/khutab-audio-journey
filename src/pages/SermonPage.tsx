@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Sermon } from '@/lib/api';
@@ -7,6 +6,7 @@ import useSermon from '@/hooks/useSermon';
 import { Loader, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 
 const SermonPage = () => {
   const location = useLocation();
@@ -17,11 +17,9 @@ const SermonPage = () => {
   const [showError, setShowError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if sermon data exists in location state
     if (location.state && 'audio_url' in location.state) {
       setSermon(location.state as Sermon);
     } else {
-      // If accessed directly without sermon data, generate a default one
       handleGenerateNew();
     }
   }, [location]);
@@ -62,7 +60,6 @@ const SermonPage = () => {
     }
   };
 
-  // If there's an error but we have a sample sermon available
   if (showError && sermon) {
     toast.error('Using backup sermon', {
       description: showError
