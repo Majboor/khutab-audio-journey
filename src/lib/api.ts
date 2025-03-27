@@ -64,24 +64,22 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     if (!signal) {
       timeoutController = new AbortController();
       effectiveSignal = timeoutController.signal;
-      // Reduce timeout to 10 seconds to improve perceived responsiveness
-      setTimeout(() => timeoutController?.abort(), 10000); 
+      // Set timeout to 30 seconds for API response
+      setTimeout(() => timeoutController?.abort(), 30000); 
     }
     
     let retryCount = 0;
-    const maxRetries = 3;
+    const maxRetries = 2;
     let lastError: Error | null = null;
     
-    // Debugging: Log API endpoint
-    console.log(`Attempting to call API at: ${API_BASE_URL}/generate-khutab`);
+    console.log(`Calling API at: ${API_BASE_URL}/generate-khutab`);
     
-    // Simple direct POST request - no CORS proxies
+    // Simple direct POST request with no proxies
     while (retryCount <= maxRetries) {
       try {
-        // Log when attempting API calls, including retry information
         console.log(`API attempt ${retryCount + 1}/${maxRetries + 1} for purpose: ${purpose}`);
         
-        // Direct fetch to your API endpoint with proper headers
+        // Direct fetch to API with no proxy
         const response = await fetch(`${API_BASE_URL}/generate-khutab`, {
           method: 'POST',
           headers: {
@@ -89,8 +87,8 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
             'Accept': 'application/json'
           },
           body: JSON.stringify({ purpose }),
-          signal: effectiveSignal,
-          // Don't specify mode or credentials to let the browser handle it naturally
+          signal: effectiveSignal
+          // No mode or credentials specified - using browser defaults
         });
 
         // Clean up timeout controller if we created one
@@ -130,22 +128,20 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           lastError.message.includes('timed out') ||
           lastError.message.includes('abort');
                              
-        if ((isNetworkError || retryCount < 1) && retryCount < maxRetries) {
+        if (isNetworkError && retryCount < maxRetries) {
           retryCount++;
           console.log(`Retrying API call (attempt ${retryCount+1}/${maxRetries+1})`);
-          // Increase wait time between retries (exponential backoff)
-          const waitTime = 500 * Math.pow(2, retryCount-1);
+          // Wait before retrying
+          const waitTime = 1000 * Math.pow(2, retryCount);
           await new Promise(resolve => setTimeout(resolve, waitTime));
           continue;
         }
         
-        // If we get here, either it's not a network error or we've reached max retries
         throw lastError;
       }
     }
     
-    // This code shouldn't be reached due to the while loop and throw above
-    throw lastError || new Error('Unknown error occurred');
+    throw lastError || new Error('Maximum retries reached');
     
   } catch (error) {
     console.error('Error generating khutba:', error);
