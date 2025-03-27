@@ -10,6 +10,7 @@ export interface Sermon {
   title: string;
   fullAudioUrl?: string; // We'll add this with the complete URL
   purpose?: string;      // Track the purpose for retries
+  errorType?: 'network' | 'server' | 'other'; // Add the errorType property
 }
 
 // Sample sermon data for fallback/development purposes
