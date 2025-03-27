@@ -74,6 +74,9 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     const maxRetries = 2; // Increase to 2 retries for better success chance
     let lastError: Error | null = null;
     
+    // Debugging: Log API endpoint
+    console.log(`Attempting to call API at: ${API_BASE_URL}/generate-khutab`);
+    
     while (retryCount <= maxRetries) {
       try {
         // Log when attempting API calls, including retry information
@@ -84,9 +87,14 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
           body: JSON.stringify({ purpose }),
           signal: effectiveSignal,
+          // Add mode: 'cors' explicitly
+          mode: 'cors',
+          // Add credentials: 'omit' to avoid sending cookies
+          credentials: 'omit'
         });
 
         // Clean up timeout controller if we created one
