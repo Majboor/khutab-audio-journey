@@ -19,6 +19,23 @@ const sampleSermon: Sermon = {
   fullAudioUrl: "https://islamicaudio.techrealm.online/audio/the-transformative-power-of-patience-a-journey-of-self-discovery-and-unity_with_background.wav"
 };
 
+// Additional sample sermons for variety
+const sampleSermons = [
+  sampleSermon,
+  {
+    audio_url: "/audio/the-transformative-power-of-patience-a-journey-of-self-discovery-and-unity_with_background.wav",
+    text: "Bismillah. The Prophet Muhammad (peace be upon him) said: 'The strong person is not the one who overcomes people with his strength, but the one who controls himself when angry.' Today we explore how controlling our anger leads to inner peace and stronger community bonds. Through mindfulness and remembrance of Allah, we can transform anger into patience and understanding. Remember the words from the Quran: 'Those who spend (in Allah's way) in prosperity and in adversity, who restrain anger and pardon people. And Allah loves the doers of good.'",
+    title: "Managing Anger: The Islamic Approach to Emotional Control",
+    fullAudioUrl: "https://islamicaudio.techrealm.online/audio/the-transformative-power-of-patience-a-journey-of-self-discovery-and-unity_with_background.wav"
+  },
+  {
+    audio_url: "/audio/the-transformative-power-of-patience-a-journey-of-self-discovery-and-unity_with_background.wav",
+    text: "In the name of Allah, the Most Compassionate, the Most Merciful. Gratitude (shukr) is central to our faith. The Quran repeatedly reminds us, 'If you are grateful, I will surely increase you [in favor].' By recognizing and appreciating Allah's countless blessings, we cultivate contentment and resilience. Gratitude transforms our perspective, allowing us to see challenges as opportunities for growth rather than obstacles. Let us practice gratitude daily through our prayers, actions, and interactions with others.",
+    title: "The Power of Gratitude in Islamic Tradition",
+    fullAudioUrl: "https://islamicaudio.techrealm.online/audio/the-transformative-power-of-patience-a-journey-of-self-discovery-and-unity_with_background.wav"
+  }
+];
+
 /**
  * Generate a new khutba sermon
  */
@@ -26,13 +43,15 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
   try {
     console.log(`Generating khutba for purpose: ${purpose}`);
     
-    // In production environment, attempt to call the API
+    // Attempt to call the API
     const response = await fetch(`${API_BASE_URL}/generate-khutab`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ purpose }),
+      // Add timeout to prevent long waiting
+      signal: AbortSignal.timeout(15000), // 15 seconds timeout
     });
 
     if (!response.ok) {
@@ -54,37 +73,70 @@ export const generateKhutba = async (purpose: string): Promise<Sermon> => {
   } catch (error) {
     console.error('Error generating khutba:', error);
     
-    // Determine if it's a network error
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    const isNetworkError = error instanceof Error && 
-      (error.message.includes('Failed to fetch') || 
-       error.message.includes('Network error') ||
-       error.message.includes('network'));
+    // Determine error type
+    let errorMessage: string;
+    let errorType: 'network' | 'server' | 'other' = 'other';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // Check for network errors
+      if (
+        error.message.includes('Failed to fetch') || 
+        error.message.includes('Network error') ||
+        error.message.includes('network') ||
+        error.message.includes('AbortError') ||
+        error.message.includes('timed out')
+      ) {
+        errorType = 'network';
+        errorMessage = 'Network connection error. Unable to reach sermon server.';
+      } else if (
+        error.message.includes('500') || 
+        error.message.includes('503') ||
+        error.message.includes('server')
+      ) {
+        errorType = 'server';
+        errorMessage = 'The sermon server is experiencing issues. Please try again later.';
+      }
+    } else {
+      errorMessage = 'Unknown error occurred';
+    }
     
     // Show specific error message based on error type
-    if (isNetworkError) {
+    if (errorType === 'network') {
       toast.error('Network Connection Error', {
         description: 'Unable to connect to sermon server. Please check your internet connection.',
         duration: 8000,
       });
+    } else if (errorType === 'server') {
+      toast.error('Server Error', {
+        description: errorMessage,
+        duration: 8000,
+      });
     } else {
-      // Show error message in toast
+      // Show general error message
       toast.error('Failed to generate sermon', {
         description: errorMessage,
         duration: 8000,
       });
     }
     
-    // For development or when the API fails, return sample data
+    // Select a random sample sermon as fallback
+    const randomIndex = Math.floor(Math.random() * sampleSermons.length);
+    const fallbackSermon = sampleSermons[randomIndex];
+    
+    // Add the purpose to the title to make it seem more relevant
+    const customizedTitle = `${fallbackSermon.title} - ${purpose.charAt(0).toUpperCase() + purpose.slice(1)}`;
+    
     toast.warning('Using sample sermon data as fallback', {
       description: 'Real sermon generation is unavailable at the moment.',
       duration: 5000,
     });
     
-    // Return sample data as fallback with the correct audio URL
+    // Return fallback data
     return {
-      ...sampleSermon,
-      title: `${sampleSermon.title} - ${purpose.charAt(0).toUpperCase() + purpose.slice(1)}`,
+      ...fallbackSermon,
+      title: customizedTitle,
     };
   }
 };
