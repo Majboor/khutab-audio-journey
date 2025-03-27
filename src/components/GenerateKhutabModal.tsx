@@ -6,6 +6,7 @@ import { Loader } from 'lucide-react';
 import { generateKhutba } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 interface GenerateKhutabModalProps {
   open: boolean;
@@ -20,7 +21,7 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [purpose, setPurpose] = useState(selectedCategory || 'patience');
-  const { toast } = useToast();
+  const { toast: uiToast } = useToast();
   const navigate = useNavigate();
 
   const purposes = [
@@ -37,7 +38,9 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
     try {
       setLoading(true);
       // We're passing just the purpose value (one word) to the API
+      toast.loading('Generating your sermon...');
       const sermon = await generateKhutba(purpose);
+      toast.dismiss();
       
       // Navigate to the sermon page with the sermon data
       navigate('/sermon', { state: sermon });
@@ -45,7 +48,8 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
       onOpenChange(false); // Close modal after successful generation
     } catch (error) {
       console.error('Error generating khutba:', error);
-      toast({
+      toast.dismiss();
+      uiToast({
         title: 'Error',
         description: 'Failed to generate sermon. Please try again.',
         variant: 'destructive',
