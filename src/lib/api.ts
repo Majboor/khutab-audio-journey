@@ -71,7 +71,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     
     // Add network error detection and retry mechanism
     let retryCount = 0;
-    const maxRetries = 2; // Increase to 2 retries for better success chance
+    const maxRetries = 3; // Increase to 3 retries for better success chance
     let lastError: Error | null = null;
     
     // Debugging: Log API endpoint
@@ -82,8 +82,10 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
         // Log when attempting API calls, including retry information
         console.log(`API attempt ${retryCount + 1}/${maxRetries + 1} for purpose: ${purpose}`);
         
-        // Attempt to call the API
-        const response = await fetch(`${API_BASE_URL}/generate-khutab`, {
+        // Attempt to call the API with fetch directly (avoiding proxy issues)
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(`${API_BASE_URL}/generate-khutab`)}`;
+        
+        const response = await fetch(proxyUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -91,9 +93,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           },
           body: JSON.stringify({ purpose }),
           signal: effectiveSignal,
-          // Add mode: 'cors' explicitly
           mode: 'cors',
-          // Add credentials: 'omit' to avoid sending cookies
           credentials: 'omit'
         });
 
@@ -133,7 +133,6 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           lastError.message.includes('AbortError') ||
           lastError.message.includes('timed out') ||
           lastError.message.includes('abort') ||
-          // Add CORS error detection
           lastError.message.includes('CORS') ||
           lastError.message.includes('cross-origin');
                              
@@ -231,7 +230,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
       ...fallbackSermon,
       title: customizedTitle,
       purpose,
-      errorType, // Here we're using the errorType directly (fixed the error)
+      errorType,
     };
   }
 };
