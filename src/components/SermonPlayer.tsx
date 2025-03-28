@@ -33,10 +33,11 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   const [currentSlide, setCurrentSlide] = useState(0);
   const [audioError, setAudioError] = useState(false);
   const [audioLoading, setAudioLoading] = useState(true);
+  const [audioInitialized, setAudioInitialized] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Ensure we have a complete URL (already coming from SermonPage)
+  // The direct URL from the prop
   const completeAudioUrl = audioUrl;
 
   const slides = [
@@ -79,6 +80,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   const handleLoadedData = () => {
     setAudioLoading(false);
     setAudioError(false);
+    setAudioInitialized(true);
     console.log("Audio data loaded successfully");
   };
 
@@ -91,27 +93,39 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   };
 
   const togglePlayPause = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-        setIsPlaying(false);
-      } else {
-        // Add explicit promise handling for play()
-        const playPromise = audioRef.current.play();
-        
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              setIsPlaying(true);
-              console.log("Audio playback started successfully");
-            })
-            .catch(error => {
-              console.error('Error playing audio:', error);
-              console.error('Audio URL that failed:', completeAudioUrl);
-              setAudioError(true);
-              setIsPlaying(false);
-            });
-        }
+    if (!audioRef.current || audioError || hasError || audioLoading) {
+      return;
+    }
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      // Create a new audio context if needed to help initiate playback
+      if (!audioInitialized && window.AudioContext) {
+        const audioContext = new AudioContext();
+        audioContext.resume().then(() => {
+          console.log("AudioContext resumed successfully");
+        }).catch(err => {
+          console.error("Error resuming AudioContext:", err);
+        });
+      }
+      
+      // Add explicit promise handling for play()
+      const playPromise = audioRef.current.play();
+      
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            setIsPlaying(true);
+            console.log("Audio playback started successfully");
+          })
+          .catch(error => {
+            console.error('Error playing audio:', error);
+            console.error('Audio URL that failed:', completeAudioUrl);
+            setAudioError(true);
+            setIsPlaying(false);
+          });
       }
     }
   };
@@ -158,14 +172,40 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
 
   // Initialize the audio element and set explicit source
   useEffect(() => {
-    if (audioRef.current && !hasError && completeAudioUrl) {
-      // Reset error state and set loading state
+    // Only proceed if we have a valid audio URL and the errors are not present
+    if (!completeAudioUrl || hasError) {
+      setAudioError(true);
+      setAudioLoading(false);
+      return;
+    }
+    
+    // Create and configure a new audio element
+    const createAudioElement = () => {
+      if (!audioRef.current) return;
+      
+      // Reset states
       setAudioError(false);
       setAudioLoading(true);
+      setAudioInitialized(false);
       
       try {
-        // Explicitly set source and prepare audio
+        // Stop any current playback
+        audioRef.current.pause();
+        
+        // Clear any existing source
+        audioRef.current.removeAttribute('src');
+        
+        // Set the new source
         audioRef.current.src = completeAudioUrl;
+        
+        // Set initial volume
+        audioRef.current.volume = volume;
+        
+        // Explicitly set crossOrigin to allow CORS requests if needed
+        audioRef.current.crossOrigin = "anonymous";
+        
+        // Set preload to auto to start loading immediately
+        audioRef.current.preload = "auto";
         
         // Force a load to initialize the audio
         audioRef.current.load();
@@ -176,27 +216,57 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
         setAudioError(true);
         setAudioLoading(false);
       }
+    };
+    
+    // Initialize audio
+    createAudioElement();
+    
+    // Add event listener for connecting audio hardware
+    const handleHardwareConnected = () => {
+      console.log("Audio hardware connected or changed, reinitializing...");
+      createAudioElement();
+    };
+    
+    if (navigator.mediaDevices) {
+      navigator.mediaDevices.addEventListener('devicechange', handleHardwareConnected);
+    }
+    
+    // Clean up function
+    return () => {
+      if (audioRef.current) {
+        // Ensure playback is stopped
+        audioRef.current.pause();
+        
+        // Clear source and release resources
+        audioRef.current.removeAttribute('src');
+        audioRef.current.load();
+      }
       
-      // Clean up function
-      return () => {
-        if (audioRef.current) {
-          // Ensure playback is stopped
-          audioRef.current.pause();
-          
-          // Clear source and release resources
-          audioRef.current.removeAttribute('src');
-          audioRef.current.load();
-        }
-      };
-    }
-  }, [hasError, completeAudioUrl]);
+      // Remove event listener
+      if (navigator.mediaDevices) {
+        navigator.mediaDevices.removeEventListener('devicechange', handleHardwareConnected);
+      }
+    };
+  }, [completeAudioUrl, hasError, volume]);
 
-  // Set volume when audio is loaded
+  // Try to reinitialize audio if there was an error
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
+    if (audioError && completeAudioUrl && !hasError && audioRef.current) {
+      const retryTimer = setTimeout(() => {
+        console.log("Attempting to reinitialize audio after error...");
+        // Clear any existing source
+        audioRef.current.removeAttribute('src');
+        
+        // Set the source again
+        audioRef.current.src = completeAudioUrl;
+        audioRef.current.load();
+        setAudioError(false);
+        setAudioLoading(true);
+      }, 3000); // Wait 3 seconds before retry
+      
+      return () => clearTimeout(retryTimer);
     }
-  }, [audioLoading, volume]);
+  }, [audioError, completeAudioUrl, hasError]);
 
   const VolumeIcon = isMuted ? VolumeX : volume > 0.5 ? Volume2 : Volume1;
 
