@@ -20,11 +20,17 @@ const SermonPage = () => {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [purpose, setPurpose] = useState('patience');
   const [retryAttempt, setRetryAttempt] = useState(0);
+  const [audioError, setAudioError] = useState(false);
   const [networkStatus, setNetworkStatus] = useState({
     lastChecked: Date.now(),
     isOnline: isOnline
   });
 
+  // Declare variables that will be used across render conditions
+  const audioUrl = sermon?.fullAudioUrl || (sermon?.audio_url ? `https://islamicaudio.techrealm.online${sermon.audio_url}` : '');
+  const rawAudioUrl = sermon?.audio_url || '';
+
+  // Progress bar animation
   useEffect(() => {
     if (generating) {
       setLoadingProgress(10);
@@ -45,6 +51,7 @@ const SermonPage = () => {
     }
   }, [generating, sermon]);
 
+  // Process sermon from location state
   useEffect(() => {
     if (location.state && 'audio_url' in location.state) {
       setPurpose(location.state.purpose || 'patience');
@@ -62,6 +69,7 @@ const SermonPage = () => {
     }
   }, [location]);
 
+  // Network status monitoring
   useEffect(() => {
     setNetworkStatus(prev => ({
       lastChecked: Date.now(),
@@ -111,6 +119,7 @@ const SermonPage = () => {
     };
   }, [isOnline, hookNetworkError, showError, networkStatus.isOnline]);
 
+  // Periodic network check
   useEffect(() => {
     const interval = setInterval(() => {
       const checkInterval = hookNetworkError ? 5000 : 15000;
@@ -125,6 +134,17 @@ const SermonPage = () => {
     
     return () => clearInterval(interval);
   }, [hookNetworkError, networkStatus.lastChecked]);
+
+  // Show toast with audio URL information in case there are issues
+  useEffect(() => {
+    if (sermon && showError) {
+      toast.error('Audio Error', {
+        description: `We're having trouble with the audio. Raw URL: ${rawAudioUrl}`,
+        duration: 8000,
+      });
+      setAudioError(true);
+    }
+  }, [sermon, showError, rawAudioUrl]);
 
   const handleClose = () => {
     navigate('/');
@@ -339,21 +359,9 @@ const SermonPage = () => {
     );
   }
 
-  const audioUrl = sermon.fullAudioUrl || `https://islamicaudio.techrealm.online${sermon.audio_url}`;
-  const rawAudioUrl = sermon.audio_url;
-  
+  // Audio URL construction moved to the top of the component to avoid conditionals
   console.log("Final audio URL being passed to SermonPlayer:", audioUrl);
   console.log("Raw audio URL being passed to SermonPlayer:", rawAudioUrl);
-  
-  // Show a toast with audio URL information in case there are issues
-  useEffect(() => {
-    if (sermon && showError) {
-      toast.error('Audio Error', {
-        description: `We're having trouble with the audio. Raw URL: ${rawAudioUrl}`,
-        duration: 8000,
-      });
-    }
-  }, [sermon, showError, rawAudioUrl]);
 
   return (
     <SermonPlayer
@@ -363,7 +371,7 @@ const SermonPage = () => {
       rawAudioUrl={rawAudioUrl}
       onClose={handleClose}
       onGenerateNew={handleGenerateNew}
-      hasError={!!showError}
+      hasError={!!showError || audioError}
     />
   );
 };
