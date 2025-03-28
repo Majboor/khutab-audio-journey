@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 
 // Base URL for the API
@@ -109,9 +110,21 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
         data.purpose = purpose;
         
         // Construct the full audio URL with the correct base URL
+        // Ensure audio_url starts with a slash if not already
         if (data.audio_url) {
-          data.fullAudioUrl = `${API_BASE_URL}${data.audio_url}`;
-          console.log("Full audio URL:", data.fullAudioUrl);
+          // If the audio_url is already a full URL, use it as is
+          if (data.audio_url.startsWith('http')) {
+            data.fullAudioUrl = data.audio_url;
+          } else {
+            // Make sure audio_url starts with a slash
+            const audioPath = data.audio_url.startsWith('/') ? data.audio_url : `/${data.audio_url}`;
+            data.fullAudioUrl = `${API_BASE_URL}${audioPath}`;
+          }
+          console.log("Full audio URL constructed:", data.fullAudioUrl);
+          console.log("Raw audio URL from API:", data.audio_url);
+        } else {
+          console.error("No audio_url found in API response");
+          data.fullAudioUrl = "";
         }
         
         return data;

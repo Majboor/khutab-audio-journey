@@ -26,8 +26,9 @@ const SermonPage = () => {
     isOnline: isOnline
   });
 
-  // Declare variables that will be used across render conditions
-  const audioUrl = sermon?.fullAudioUrl || (sermon?.audio_url ? `https://islamicaudio.techrealm.online${sermon.audio_url}` : '');
+  // Always declare the audio URL variables at the top level, regardless of sermon state
+  // This ensures hooks are always called in the same order
+  const audioUrl = sermon?.fullAudioUrl || '';
   const rawAudioUrl = sermon?.audio_url || '';
 
   // Progress bar animation
@@ -154,6 +155,7 @@ const SermonPage = () => {
     setGenerating(true);
     setShowError(null);
     setLoadingProgress(10);
+    setAudioError(false);
     
     try {
       toast.loading('Creating a new sermon...', { 
@@ -165,7 +167,20 @@ const SermonPage = () => {
       const newSermon = await generateSermon(purpose);
       if (newSermon) {
         setSermon(newSermon);
-        console.log("Sermon set with audio URL:", newSermon.fullAudioUrl || `https://islamicaudio.techrealm.online${newSermon.audio_url}`);
+        
+        // Log the audio URLs for debugging
+        console.log("Sermon generated with:");
+        console.log("- Raw audio URL:", newSermon.audio_url);
+        console.log("- Full audio URL:", newSermon.fullAudioUrl);
+        
+        // Check if audio URL is properly formed
+        if (!newSermon.fullAudioUrl) {
+          toast.warning('Audio URL issue', {
+            description: `Generated sermon has audio path but no full URL: ${newSermon.audio_url}`,
+            duration: 8000,
+          });
+        }
+        
         setRetryAttempt(0);
       } else {
         setShowError('Failed to generate sermon. Please try again.');
@@ -249,10 +264,12 @@ const SermonPage = () => {
 
   if (showError && sermon) {
     toast.warning('Using backup sermon', {
-      description: `${showError}. Raw audio URL: ${sermon.audio_url}`
+      description: `${showError}. Raw audio URL: ${sermon.audio_url || 'None available'}`,
+      duration: 5000,
     });
   }
 
+  // If no sermon exists or we're still generating, show loading state
   if (!sermon || generating) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-black">
@@ -359,10 +376,12 @@ const SermonPage = () => {
     );
   }
 
-  // Audio URL construction moved to the top of the component to avoid conditionals
-  console.log("Final audio URL being passed to SermonPlayer:", audioUrl);
-  console.log("Raw audio URL being passed to SermonPlayer:", rawAudioUrl);
+  // Log audio URLs for debugging
+  console.log("SermonPage: Rendering with sermon data");
+  console.log("- Raw URL:", rawAudioUrl);
+  console.log("- Full URL:", audioUrl);
 
+  // Always return the SermonPlayer component when we have a sermon
   return (
     <SermonPlayer
       title={sermon.title}
