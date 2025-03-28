@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader, Send, ArrowLeft } from 'lucide-react';
+import { Loader, Send, ArrowLeft, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '@/lib/api';
 
@@ -13,6 +13,7 @@ const ApiTestPage = () => {
   const [method, setMethod] = useState<string>('POST');
   const [payload, setPayload] = useState<string>('{"purpose":"patience"}');
   const [response, setResponse] = useState<string>('');
+  const [responseData, setResponseData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [status, setStatus] = useState<string>('');
   const [headers, setHeaders] = useState<string>('{"Content-Type": "application/json"}');
@@ -22,6 +23,7 @@ const ApiTestPage = () => {
       setLoading(true);
       setResponse('');
       setStatus('');
+      setResponseData(null);
 
       const fullUrl = `${API_BASE_URL}${endpoint}`;
       const parsedHeaders = JSON.parse(headers);
@@ -56,6 +58,13 @@ const ApiTestPage = () => {
       
       if (contentType?.includes('application/json')) {
         responseBody = await response.json();
+        
+        // Process audio_url if it exists
+        if (responseBody && responseBody.audio_url) {
+          responseBody.fullAudioUrl = `${API_BASE_URL}${responseBody.audio_url}`;
+        }
+        
+        setResponseData(responseBody);
         setResponse(JSON.stringify(responseBody, null, 2));
       } else {
         responseBody = await response.text();
@@ -66,10 +75,17 @@ const ApiTestPage = () => {
       console.log('Response headers:', responseHeaders);
       console.log('Response body:', responseBody);
       
-      toast.success(`Status: ${statusText}`, {
-        id: 'api-test',
-        duration: 3000
-      });
+      if (response.status >= 200 && response.status < 300) {
+        toast.success(`Success: ${statusText}`, {
+          id: 'api-test',
+          duration: 3000
+        });
+      } else {
+        toast.error(`Error: ${statusText}`, {
+          id: 'api-test',
+          duration: 3000
+        });
+      }
       
     } catch (error) {
       console.error('API test error:', error);
@@ -84,6 +100,29 @@ const ApiTestPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderAudioPreview = () => {
+    if (!responseData || !responseData.audio_url) return null;
+    
+    const audioUrl = responseData.fullAudioUrl || `${API_BASE_URL}${responseData.audio_url}`;
+    
+    return (
+      <div className="mt-4 p-4 bg-muted rounded-md">
+        <h4 className="font-medium mb-2 flex items-center">
+          <Play className="w-4 h-4 mr-2" /> Audio Preview
+        </h4>
+        <audio 
+          controls 
+          src={audioUrl} 
+          className="w-full"
+        />
+        <div className="mt-2 text-xs text-muted-foreground">
+          <p>Original URL: <code>{responseData.audio_url}</code></p>
+          <p>Full URL: <code>{audioUrl}</code></p>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -186,9 +225,11 @@ const ApiTestPage = () => {
             
             <div className="bg-card p-4 rounded-lg shadow-md h-[500px] overflow-auto">
               <h3 className="font-medium mb-2">Response Body</h3>
-              <pre className="bg-muted p-4 rounded-md text-xs overflow-auto h-[90%]">
+              <pre className="bg-muted p-4 rounded-md text-xs overflow-auto h-[70%]">
                 {response || 'No response yet'}
               </pre>
+              
+              {renderAudioPreview()}
             </div>
           </div>
         </div>
