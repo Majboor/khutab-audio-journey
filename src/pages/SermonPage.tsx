@@ -24,7 +24,6 @@ const SermonPage = () => {
     isOnline: isOnline
   });
 
-  // Loading animation
   useEffect(() => {
     if (generating) {
       setLoadingProgress(10);
@@ -54,7 +53,6 @@ const SermonPage = () => {
     }
   }, [location]);
 
-  // Network status monitoring
   useEffect(() => {
     setNetworkStatus(prev => ({
       lastChecked: Date.now(),
@@ -104,7 +102,6 @@ const SermonPage = () => {
     };
   }, [isOnline, hookNetworkError, showError, networkStatus.isOnline]);
 
-  // Periodically check network status in the background
   useEffect(() => {
     const interval = setInterval(() => {
       const checkInterval = hookNetworkError ? 5000 : 15000;
@@ -334,13 +331,16 @@ const SermonPage = () => {
   }
 
   const audioUrl = sermon.fullAudioUrl || `https://islamicaudio.techrealm.online${sermon.audio_url}`;
+  const rawAudioUrl = sermon.audio_url;
   console.log("Final audio URL being passed to SermonPlayer:", audioUrl);
+  console.log("Raw audio URL being passed to SermonPlayer:", rawAudioUrl);
 
   return (
     <SermonPlayer
       title={sermon.title}
       text={sermon.text}
       audioUrl={audioUrl}
+      rawAudioUrl={rawAudioUrl}
       onClose={handleClose}
       onGenerateNew={handleGenerateNew}
       hasError={!!showError}

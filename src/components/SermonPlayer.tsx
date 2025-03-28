@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,7 @@ interface SermonPlayerProps {
   title: string;
   text: string;
   audioUrl: string;
+  rawAudioUrl?: string;
   onClose: () => void;
   onGenerateNew: () => void;
   hasError?: boolean;
@@ -19,6 +19,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   title,
   text,
   audioUrl,
+  rawAudioUrl,
   onClose,
   onGenerateNew,
   hasError = false,
@@ -34,18 +35,18 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Slideshow images
   const slides = [
     'https://cdn.pixabay.com/video/2020/03/07/33348-397122062_tiny.jpg',
     'https://ak.picdn.net/shutterstock/videos/3396445667/thumb/1.jpg',
   ];
 
-  // Log the audio URL when it changes
   useEffect(() => {
     console.log("SermonPlayer received audioUrl:", audioUrl);
-  }, [audioUrl]);
+    if (rawAudioUrl) {
+      console.log("SermonPlayer received rawAudioUrl:", rawAudioUrl);
+    }
+  }, [audioUrl, rawAudioUrl]);
 
-  // Handle slideshow transition
   useEffect(() => {
     if (isPlaying) {
       const interval = setInterval(() => {
@@ -56,14 +57,12 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     }
   }, [isPlaying, slides.length]);
 
-  // Handle audio time update
   const handleTimeUpdate = () => {
     if (audioRef.current) {
       setCurrentTime(audioRef.current.currentTime);
     }
   };
 
-  // Handle audio loaded metadata
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
       setDuration(audioRef.current.duration);
@@ -72,14 +71,12 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     }
   };
 
-  // Handle audio loaded data
   const handleLoadedData = () => {
     setAudioLoading(false);
     setAudioError(false);
     console.log("Audio data loaded successfully");
   };
 
-  // Handle audio error
   const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
     console.error('Audio playback error:', e);
     setAudioError(true);
@@ -87,7 +84,6 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     setIsPlaying(false);
   };
 
-  // Play/pause toggle
   const togglePlayPause = () => {
     if (audioRef.current) {
       if (isPlaying) {
@@ -102,7 +98,6 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     }
   };
 
-  // Seek to position
   const handleSeek = (value: number[]) => {
     if (audioRef.current) {
       audioRef.current.currentTime = value[0];
@@ -110,7 +105,6 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     }
   };
 
-  // Handle volume change
   const handleVolumeChange = (value: number[]) => {
     const newVolume = value[0];
     setVolume(newVolume);
@@ -126,7 +120,6 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     }
   };
 
-  // Toggle mute
   const toggleMute = () => {
     if (audioRef.current) {
       if (isMuted) {
@@ -139,21 +132,17 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     }
   };
 
-  // Format time in MM:SS
   const formatTime = (time: number) => {
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // Auto-play when component mounts
   useEffect(() => {
     if (audioRef.current && !hasError) {
-      // Reset error state when audio URL changes
       setAudioError(false);
       setAudioLoading(true);
       
-      // Try to play the audio after a short delay to ensure the audio element has loaded
       const playTimer = setTimeout(() => {
         if (audioRef.current) {
           audioRef.current.play().catch((error) => {
@@ -180,7 +169,6 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
       ref={containerRef}
       className="fixed inset-0 z-50 bg-black flex flex-col animate-fade-in"
     >
-      {/* Background Slideshow */}
       <div className="absolute inset-0 overflow-hidden">
         {slides.map((slide, index) => (
           <div
@@ -195,9 +183,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       </div>
       
-      {/* Content */}
       <div className="relative z-10 flex flex-col h-full">
-        {/* Header */}
         <div className="flex justify-between items-center p-6">
           <Button 
             variant="ghost" 
@@ -218,7 +204,6 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
           </Button>
         </div>
         
-        {/* Sermon Content */}
         <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-auto">
           <h1 className="text-3xl md:text-4xl font-bold text-white text-center mb-6 text-shadow-lg animate-fade-in max-w-2xl">
             {title}
@@ -230,6 +215,11 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
               <AlertTitle>Audio Error</AlertTitle>
               <AlertDescription className="text-white/90">
                 There was a problem loading the audio. The sermon text is still available to read.
+                {rawAudioUrl && (
+                  <div className="mt-2 text-xs bg-black/20 p-2 rounded">
+                    <p>Raw API audio URL: <code className="font-mono">{rawAudioUrl}</code></p>
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -239,7 +229,6 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
           </div>
         </div>
         
-        {/* Audio Controls */}
         <div className="p-6 glass border-t border-white/10">
           <audio 
             ref={audioRef}

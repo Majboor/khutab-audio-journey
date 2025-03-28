@@ -26,6 +26,7 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
   const [previewData, setPreviewData] = useState<any>(null);
   const [audioError, setAudioError] = useState(false);
   const [audioLoaded, setAudioLoaded] = useState(false);
+  const [rawAudioUrl, setRawAudioUrl] = useState<string>('');
   const { toast: uiToast } = useToast();
   const navigate = useNavigate();
 
@@ -45,6 +46,7 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
       setAudioError(false);
       setAudioLoaded(false);
       setPreviewData(null);
+      setRawAudioUrl('');
     }
   }, [open]);
 
@@ -54,6 +56,7 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
       setPreviewData(null);
       setAudioError(false);
       setAudioLoaded(false);
+      setRawAudioUrl('');
       
       // Show loading toast
       toast.loading('Generating your sermon...', {
@@ -67,6 +70,9 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
       
       // Process the audio URL if it exists
       if (sermon && sermon.audio_url) {
+        // Store the raw audio URL for display in case of errors
+        setRawAudioUrl(sermon.audio_url);
+        
         // Ensure we have a valid URL by adding the API_BASE_URL if needed
         if (sermon.audio_url.startsWith('/')) {
           sermon.fullAudioUrl = `${API_BASE_URL}${sermon.audio_url}`;
@@ -152,6 +158,11 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
             <AlertTitle>Audio Error</AlertTitle>
             <AlertDescription>
               There was a problem loading the audio. The sermon text is still available.
+              {rawAudioUrl && (
+                <div className="mt-2 text-xs">
+                  <p>Raw API audio URL: <code className="bg-black/20 p-1 rounded">{rawAudioUrl}</code></p>
+                </div>
+              )}
             </AlertDescription>
           </Alert>
         )}
