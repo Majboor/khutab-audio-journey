@@ -36,6 +36,11 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Ensure we have a complete URL
+  const completeAudioUrl = audioUrl || (rawAudioUrl ? 
+    `https://islamicaudio.techrealm.online${rawAudioUrl.startsWith('/') ? rawAudioUrl : '/' + rawAudioUrl}` : 
+    '');
+
   const slides = [
     'https://cdn.pixabay.com/video/2020/03/07/33348-397122062_tiny.jpg',
     'https://ak.picdn.net/shutterstock/videos/3396445667/thumb/1.jpg',
@@ -43,10 +48,11 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
 
   useEffect(() => {
     console.log("SermonPlayer received audioUrl:", audioUrl);
+    console.log("Complete constructed URL for audio:", completeAudioUrl);
     if (rawAudioUrl) {
       console.log("SermonPlayer received rawAudioUrl:", rawAudioUrl);
     }
-  }, [audioUrl, rawAudioUrl]);
+  }, [audioUrl, rawAudioUrl, completeAudioUrl]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -80,6 +86,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
 
   const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
     console.error('Audio playback error:', e);
+    console.error('Failed audio URL:', completeAudioUrl);
     setAudioError(true);
     setAudioLoading(false);
     setIsPlaying(false);
@@ -92,6 +99,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
       } else {
         audioRef.current.play().catch(error => {
           console.error('Error playing audio:', error);
+          console.error('Audio URL that failed:', completeAudioUrl);
           setAudioError(true);
         });
       }
@@ -148,6 +156,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
         if (audioRef.current) {
           audioRef.current.play().catch((error) => {
             console.error('Auto-play failed:', error);
+            console.error('Audio URL that failed to auto-play:', completeAudioUrl);
             setAudioError(true);
           });
           setIsPlaying(true);
@@ -161,7 +170,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
         }
       };
     }
-  }, [hasError, audioUrl]);
+  }, [hasError, completeAudioUrl]);
 
   const VolumeIcon = isMuted ? VolumeX : volume > 0.5 ? Volume2 : Volume1;
 
@@ -219,13 +228,13 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                 <div className="mt-2 text-xs bg-black/20 p-3 rounded overflow-auto">
                   <p className="mb-1">Complete Audio URL:</p>
                   <div className="flex items-center gap-2 font-mono break-all">
-                    <code>{audioUrl || 'Not available'}</code>
-                    {audioUrl && (
+                    <code>{completeAudioUrl || 'Not available'}</code>
+                    {completeAudioUrl && (
                       <Button 
                         variant="ghost" 
                         size="icon" 
                         className="h-5 w-5 rounded-full bg-white/10"
-                        onClick={() => window.open(audioUrl, '_blank')}
+                        onClick={() => window.open(completeAudioUrl, '_blank')}
                       >
                         <ExternalLink className="h-3 w-3" />
                       </Button>
@@ -251,7 +260,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
         <div className="p-6 glass border-t border-white/10">
           <audio 
             ref={audioRef}
-            src={audioUrl}
+            src={completeAudioUrl}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onLoadedData={handleLoadedData}

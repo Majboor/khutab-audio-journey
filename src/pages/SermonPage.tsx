@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Sermon } from '@/lib/api';
@@ -26,12 +25,12 @@ const SermonPage = () => {
     isOnline: isOnline
   });
 
-  // Always declare the audio URL variables at the top level, regardless of sermon state
-  // This ensures hooks are always called in the same order
   const audioUrl = sermon?.fullAudioUrl || '';
   const rawAudioUrl = sermon?.audio_url || '';
+  const completeAudioUrl = audioUrl || (rawAudioUrl ? 
+    `https://islamicaudio.techrealm.online${rawAudioUrl.startsWith('/') ? rawAudioUrl : '/' + rawAudioUrl}` : 
+    '');
 
-  // Progress bar animation
   useEffect(() => {
     if (generating) {
       setLoadingProgress(10);
@@ -52,16 +51,15 @@ const SermonPage = () => {
     }
   }, [generating, sermon]);
 
-  // Process sermon from location state
   useEffect(() => {
     if (location.state && 'audio_url' in location.state) {
       setPurpose(location.state.purpose || 'patience');
       setSermon(location.state as Sermon);
       
-      // Check if the sermon has an audio URL but might have issues
       if (location.state.audio_url && !location.state.fullAudioUrl) {
+        const constructedUrl = `https://islamicaudio.techrealm.online${location.state.audio_url.startsWith('/') ? location.state.audio_url : '/' + location.state.audio_url}`;
         toast.warning('Audio URL issue detected', {
-          description: `Complete audio URL should be: https://islamicaudio.techrealm.online${location.state.audio_url}`,
+          description: `Complete audio URL should be: ${constructedUrl}`,
           duration: 8000,
         });
       }
@@ -70,7 +68,6 @@ const SermonPage = () => {
     }
   }, [location]);
 
-  // Network status monitoring
   useEffect(() => {
     setNetworkStatus(prev => ({
       lastChecked: Date.now(),
@@ -120,7 +117,6 @@ const SermonPage = () => {
     };
   }, [isOnline, hookNetworkError, showError, networkStatus.isOnline]);
 
-  // Periodic network check
   useEffect(() => {
     const interval = setInterval(() => {
       const checkInterval = hookNetworkError ? 5000 : 15000;
@@ -136,7 +132,6 @@ const SermonPage = () => {
     return () => clearInterval(interval);
   }, [hookNetworkError, networkStatus.lastChecked]);
 
-  // Show toast with audio URL information in case there are issues
   useEffect(() => {
     if (sermon && showError) {
       toast.error('Audio Error', {
@@ -168,12 +163,12 @@ const SermonPage = () => {
       if (newSermon) {
         setSermon(newSermon);
         
-        // Log the audio URLs for debugging
         console.log("Sermon generated with:");
         console.log("- Raw audio URL:", newSermon.audio_url);
         console.log("- Full audio URL:", newSermon.fullAudioUrl);
+        console.log("- Complete constructed URL:", newSermon.fullAudioUrl || 
+          (newSermon.audio_url ? `https://islamicaudio.techrealm.online${newSermon.audio_url.startsWith('/') ? newSermon.audio_url : '/' + newSermon.audio_url}` : ''));
         
-        // Check if audio URL is properly formed
         if (!newSermon.fullAudioUrl && newSermon.audio_url) {
           const constructedUrl = `https://islamicaudio.techrealm.online${newSermon.audio_url.startsWith('/') ? newSermon.audio_url : '/' + newSermon.audio_url}`;
           toast.warning('Audio URL issue', {
@@ -265,12 +260,11 @@ const SermonPage = () => {
 
   if (showError && sermon) {
     toast.warning('Using backup sermon', {
-      description: `${showError}. Complete audio URL: ${audioUrl || 'https://islamicaudio.techrealm.online' + (rawAudioUrl.startsWith('/') ? rawAudioUrl : '/' + rawAudioUrl)}`,
+      description: `${showError}. Complete audio URL: ${completeAudioUrl}`,
       duration: 8000,
     });
   }
 
-  // If no sermon exists or we're still generating, show loading state
   if (!sermon || generating) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-black">
@@ -377,20 +371,16 @@ const SermonPage = () => {
     );
   }
 
-  // Log audio URLs for debugging
   console.log("SermonPage: Rendering with sermon data");
   console.log("- Raw URL:", rawAudioUrl);
   console.log("- Full URL:", audioUrl);
-  console.log("- Constructed URL (if needed):", !audioUrl && rawAudioUrl ? 
-    `https://islamicaudio.techrealm.online${rawAudioUrl.startsWith('/') ? rawAudioUrl : '/' + rawAudioUrl}` : 
-    'Not needed');
+  console.log("- Complete constructed URL:", completeAudioUrl);
 
-  // Always return the SermonPlayer component when we have a sermon
   return (
     <SermonPlayer
       title={sermon.title}
       text={sermon.text}
-      audioUrl={audioUrl}
+      audioUrl={completeAudioUrl}
       rawAudioUrl={rawAudioUrl}
       onClose={handleClose}
       onGenerateNew={handleGenerateNew}
