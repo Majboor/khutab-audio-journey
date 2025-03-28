@@ -1,12 +1,11 @@
-
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import Header from '@/components/Header';
 import CategoryCard from '@/components/CategoryCard';
 import GenerateKhutabModal from '@/components/GenerateKhutabModal';
 import { Button } from '@/components/ui/button';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Server } from 'lucide-react';
 import useSermon from '@/hooks/useSermon';
 
 const categories = [
@@ -69,14 +68,26 @@ const Index = () => {
             Explore inspirational sermons powered by AI to deepen your spiritual journey.
           </p>
           
-          <Button 
-            onClick={handleCreateNew}
-            className="animate-pulse-subtle"
-            size="lg"
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Generate New Sermon
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button 
+              onClick={handleCreateNew}
+              className="animate-pulse-subtle"
+              size="lg"
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Generate New Sermon
+            </Button>
+            
+            <Link to="/api-test">
+              <Button 
+                variant="outline"
+                size="lg"
+              >
+                <Server className="mr-2 h-4 w-4" />
+                API Testing
+              </Button>
+            </Link>
+          </div>
         </section>
         
         <section className="mb-16">
