@@ -1,13 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader, Play } from 'lucide-react';
+import { Loader, Play, AlertTriangle } from 'lucide-react';
 import { generateKhutba } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { API_BASE_URL } from '@/lib/api';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface GenerateKhutabModalProps {
   open: boolean;
@@ -23,6 +24,8 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [purpose, setPurpose] = useState(selectedCategory || 'patience');
   const [previewData, setPreviewData] = useState<any>(null);
+  const [audioError, setAudioError] = useState(false);
+  const [audioLoaded, setAudioLoaded] = useState(false);
   const { toast: uiToast } = useToast();
   const navigate = useNavigate();
 
@@ -36,10 +39,21 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
     { value: 'patience', label: 'Patience & Resilience' },
   ];
 
+  // Reset audio states when modal opens/closes
+  useEffect(() => {
+    if (!open) {
+      setAudioError(false);
+      setAudioLoaded(false);
+      setPreviewData(null);
+    }
+  }, [open]);
+
   const handleGenerateKhutba = async () => {
     try {
       setLoading(true);
       setPreviewData(null);
+      setAudioError(false);
+      setAudioLoaded(false);
       
       // Show loading toast
       toast.loading('Generating your sermon...', {
@@ -53,8 +67,20 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
       
       // Process the audio URL if it exists
       if (sermon && sermon.audio_url) {
-        sermon.fullAudioUrl = `${API_BASE_URL}${sermon.audio_url}`;
+        // Ensure we have a valid URL by adding the API_BASE_URL if needed
+        if (sermon.audio_url.startsWith('/')) {
+          sermon.fullAudioUrl = `${API_BASE_URL}${sermon.audio_url}`;
+        } else if (!sermon.audio_url.startsWith('http')) {
+          sermon.fullAudioUrl = `${API_BASE_URL}/${sermon.audio_url}`;
+        } else {
+          sermon.fullAudioUrl = sermon.audio_url;
+        }
         console.log("Full audio URL:", sermon.fullAudioUrl);
+      } else {
+        setAudioError(true);
+        toast.error('Audio not available', {
+          description: 'The sermon was generated, but audio is not available.'
+        });
       }
       
       // Set preview data for audio player
@@ -89,6 +115,26 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
     }
   };
 
+  const handleAudioError = () => {
+    setAudioError(true);
+    setAudioLoaded(false);
+    console.error('Audio loading error');
+    
+    if (previewData) {
+      // Update the toast to inform about audio issues
+      toast.error('Audio Error', {
+        description: 'There was a problem loading the audio. The sermon text is still available.',
+        duration: 5000,
+      });
+    }
+  };
+
+  const handleAudioLoaded = () => {
+    setAudioLoaded(true);
+    setAudioError(false);
+    console.log('Audio loaded successfully');
+  };
+
   const renderAudioPreview = () => {
     if (!previewData || !previewData.audio_url) return null;
     
@@ -99,14 +145,29 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
         <h4 className="font-medium mb-2 flex items-center">
           <Play className="w-4 h-4 mr-2" /> Audio Preview
         </h4>
+        
+        {audioError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Audio Error</AlertTitle>
+            <AlertDescription>
+              There was a problem loading the audio. The sermon text is still available.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <audio 
           controls 
           src={audioUrl} 
           className="w-full"
+          onError={handleAudioError}
+          onLoadedData={handleAudioLoaded}
         />
+        
         <div className="mt-2 text-xs text-muted-foreground">
           <p>Original URL: <code>{previewData.audio_url}</code></p>
           <p>Full URL: <code>{audioUrl}</code></p>
+          <p>Status: {audioLoaded ? 'Loaded ✓' : audioError ? 'Error loading audio ✗' : 'Loading...'}</p>
         </div>
       </div>
     );
