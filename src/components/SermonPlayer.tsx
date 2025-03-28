@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, AlertTriangle } from 'lucide-react';
+import { X, Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, AlertTriangle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -215,11 +216,29 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
               <AlertTitle>Audio Error</AlertTitle>
               <AlertDescription className="text-white/90">
                 There was a problem loading the audio. The sermon text is still available to read.
-                {rawAudioUrl && (
-                  <div className="mt-2 text-xs bg-black/20 p-2 rounded">
-                    <p>Raw API audio URL: <code className="font-mono">{rawAudioUrl}</code></p>
+                <div className="mt-2 text-xs bg-black/20 p-3 rounded overflow-auto">
+                  <p className="mb-1">Complete Audio URL:</p>
+                  <div className="flex items-center gap-2 font-mono break-all">
+                    <code>{audioUrl || 'Not available'}</code>
+                    {audioUrl && (
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-5 w-5 rounded-full bg-white/10"
+                        onClick={() => window.open(audioUrl, '_blank')}
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
-                )}
+                  
+                  {rawAudioUrl && (
+                    <>
+                      <p className="mt-2 mb-1">Raw API audio path:</p>
+                      <code className="font-mono">{rawAudioUrl}</code>
+                    </>
+                  )}
+                </div>
               </AlertDescription>
             </Alert>
           )}

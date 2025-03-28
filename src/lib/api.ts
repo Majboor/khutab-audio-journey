@@ -122,6 +122,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           }
           console.log("Full audio URL constructed:", data.fullAudioUrl);
           console.log("Raw audio URL from API:", data.audio_url);
+          console.log("Complete constructed URL:", `${API_BASE_URL}${data.audio_url.startsWith('/') ? data.audio_url : '/' + data.audio_url}`);
         } else {
           console.error("No audio_url found in API response");
           data.fullAudioUrl = "";
@@ -222,7 +223,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     const customizedTitle = `${fallbackSermon.title} - ${capitalizedPurpose}`;
     
     toast.warning('Using sample sermon data as fallback', {
-      description: 'Real sermon generation is unavailable at the moment.',
+      description: 'Real sermon generation is unavailable at the moment. Complete audio URL: ' + fallbackSermon.fullAudioUrl,
       duration: 5000,
     });
     

@@ -61,7 +61,7 @@ const SermonPage = () => {
       // Check if the sermon has an audio URL but might have issues
       if (location.state.audio_url && !location.state.fullAudioUrl) {
         toast.warning('Audio URL issue detected', {
-          description: `Raw audio URL: ${location.state.audio_url}`,
+          description: `Complete audio URL should be: https://islamicaudio.techrealm.online${location.state.audio_url}`,
           duration: 8000,
         });
       }
@@ -174,9 +174,10 @@ const SermonPage = () => {
         console.log("- Full audio URL:", newSermon.fullAudioUrl);
         
         // Check if audio URL is properly formed
-        if (!newSermon.fullAudioUrl) {
+        if (!newSermon.fullAudioUrl && newSermon.audio_url) {
+          const constructedUrl = `https://islamicaudio.techrealm.online${newSermon.audio_url.startsWith('/') ? newSermon.audio_url : '/' + newSermon.audio_url}`;
           toast.warning('Audio URL issue', {
-            description: `Generated sermon has audio path but no full URL: ${newSermon.audio_url}`,
+            description: `Complete audio URL should be: ${constructedUrl}`,
             duration: 8000,
           });
         }
@@ -264,8 +265,8 @@ const SermonPage = () => {
 
   if (showError && sermon) {
     toast.warning('Using backup sermon', {
-      description: `${showError}. Raw audio URL: ${sermon.audio_url || 'None available'}`,
-      duration: 5000,
+      description: `${showError}. Complete audio URL: ${audioUrl || 'https://islamicaudio.techrealm.online' + (rawAudioUrl.startsWith('/') ? rawAudioUrl : '/' + rawAudioUrl)}`,
+      duration: 8000,
     });
   }
 
@@ -380,6 +381,9 @@ const SermonPage = () => {
   console.log("SermonPage: Rendering with sermon data");
   console.log("- Raw URL:", rawAudioUrl);
   console.log("- Full URL:", audioUrl);
+  console.log("- Constructed URL (if needed):", !audioUrl && rawAudioUrl ? 
+    `https://islamicaudio.techrealm.online${rawAudioUrl.startsWith('/') ? rawAudioUrl : '/' + rawAudioUrl}` : 
+    'Not needed');
 
   // Always return the SermonPlayer component when we have a sermon
   return (
