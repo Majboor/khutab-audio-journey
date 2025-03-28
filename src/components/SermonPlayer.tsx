@@ -36,10 +36,8 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Ensure we have a complete URL
-  const completeAudioUrl = audioUrl || (rawAudioUrl ? 
-    `https://islamicaudio.techrealm.online${rawAudioUrl.startsWith('/') ? rawAudioUrl : '/' + rawAudioUrl}` : 
-    '');
+  // Ensure we have a complete URL (already coming from SermonPage)
+  const completeAudioUrl = audioUrl;
 
   const slides = [
     'https://cdn.pixabay.com/video/2020/03/07/33348-397122062_tiny.jpg',
@@ -48,7 +46,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
 
   useEffect(() => {
     console.log("SermonPlayer received audioUrl:", audioUrl);
-    console.log("Complete constructed URL for audio:", completeAudioUrl);
+    console.log("Complete audio URL for player:", completeAudioUrl);
     if (rawAudioUrl) {
       console.log("SermonPlayer received rawAudioUrl:", rawAudioUrl);
     }
@@ -158,28 +156,47 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // Explicitly set the audio src when component mounts
+  // Initialize the audio element and set explicit source
   useEffect(() => {
-    if (audioRef.current && !hasError) {
+    if (audioRef.current && !hasError && completeAudioUrl) {
+      // Reset error state and set loading state
       setAudioError(false);
       setAudioLoading(true);
       
-      // Make sure the audio element uses the complete URL
-      audioRef.current.src = completeAudioUrl;
+      try {
+        // Explicitly set source and prepare audio
+        audioRef.current.src = completeAudioUrl;
+        
+        // Force a load to initialize the audio
+        audioRef.current.load();
+        
+        console.log("Audio source explicitly set to:", completeAudioUrl);
+      } catch (err) {
+        console.error("Error setting audio source:", err);
+        setAudioError(true);
+        setAudioLoading(false);
+      }
       
-      // Don't auto-play, just load the audio
-      audioRef.current.load();
-      
-      console.log("Audio source set to:", completeAudioUrl);
-      
+      // Clean up function
       return () => {
         if (audioRef.current) {
+          // Ensure playback is stopped
           audioRef.current.pause();
-          audioRef.current.src = "";
+          
+          // Clear source and release resources
+          audioRef.current.removeAttribute('src');
+          audioRef.current.load();
         }
       };
     }
   }, [hasError, completeAudioUrl]);
+
+  // Set volume when audio is loaded
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [audioLoading, volume]);
 
   const VolumeIcon = isMuted ? VolumeX : volume > 0.5 ? Volume2 : Volume1;
 
