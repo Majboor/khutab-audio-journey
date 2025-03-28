@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Sermon } from '@/lib/api';
@@ -48,6 +49,14 @@ const SermonPage = () => {
     if (location.state && 'audio_url' in location.state) {
       setPurpose(location.state.purpose || 'patience');
       setSermon(location.state as Sermon);
+      
+      // Check if the sermon has an audio URL but might have issues
+      if (location.state.audio_url && !location.state.fullAudioUrl) {
+        toast.warning('Audio URL issue detected', {
+          description: `Raw audio URL: ${location.state.audio_url}`,
+          duration: 8000,
+        });
+      }
     } else {
       handleGenerateNew();
     }
@@ -220,7 +229,7 @@ const SermonPage = () => {
 
   if (showError && sermon) {
     toast.warning('Using backup sermon', {
-      description: showError
+      description: `${showError}. Raw audio URL: ${sermon.audio_url}`
     });
   }
 
@@ -332,8 +341,19 @@ const SermonPage = () => {
 
   const audioUrl = sermon.fullAudioUrl || `https://islamicaudio.techrealm.online${sermon.audio_url}`;
   const rawAudioUrl = sermon.audio_url;
+  
   console.log("Final audio URL being passed to SermonPlayer:", audioUrl);
   console.log("Raw audio URL being passed to SermonPlayer:", rawAudioUrl);
+  
+  // Show a toast with audio URL information in case there are issues
+  useEffect(() => {
+    if (sermon && showError) {
+      toast.error('Audio Error', {
+        description: `We're having trouble with the audio. Raw URL: ${rawAudioUrl}`,
+        duration: 8000,
+      });
+    }
+  }, [sermon, showError, rawAudioUrl]);
 
   return (
     <SermonPlayer
