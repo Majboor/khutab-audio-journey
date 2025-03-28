@@ -12,14 +12,27 @@ import { Progress } from '@/components/ui/progress';
 const SermonPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { generateSermon, retryGeneration, loading: hookLoading, error: hookError, networkError: hookNetworkError, retryCount, isOnline } = useSermon();
+  const { 
+    generateSermon, 
+    retryGeneration, 
+    generateBatchSermons, 
+    loading: hookLoading, 
+    error: hookError, 
+    networkError: hookNetworkError, 
+    retryCount, 
+    isOnline 
+  } = useSermon();
   const [sermon, setSermon] = useState<Sermon | null>(null);
+  const [sermonHistory, setSermonHistory] = useState<Sermon[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [showError, setShowError] = useState<string | null>(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [purpose, setPurpose] = useState('patience');
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [audioError, setAudioError] = useState(false);
+  const [foreverMode, setForeverMode] = useState(false);
+  const [prefetchingNext, setPrefetchingNext] = useState(false);
   const [networkStatus, setNetworkStatus] = useState({
     lastChecked: Date.now(),
     isOnline: isOnline
@@ -30,6 +43,12 @@ const SermonPage = () => {
   const completeAudioUrl = audioUrl || (rawAudioUrl ? 
     `https://islamicaudio.techrealm.online${rawAudioUrl.startsWith('/') ? rawAudioUrl : '/' + rawAudioUrl}` : 
     '');
+
+  useEffect(() => {
+    if (foreverMode && !generating && !prefetchingNext && sermonHistory.length > 0 && currentIndex === sermonHistory.length - 1) {
+      handlePrefetchNext();
+    }
+  }, [foreverMode, generating, prefetchingNext, sermonHistory.length, currentIndex]);
 
   useEffect(() => {
     if (generating) {
@@ -55,6 +74,8 @@ const SermonPage = () => {
     if (location.state && 'audio_url' in location.state) {
       setPurpose(location.state.purpose || 'patience');
       setSermon(location.state as Sermon);
+      setSermonHistory([location.state as Sermon]);
+      setCurrentIndex(0);
       
       if (location.state.audio_url && !location.state.fullAudioUrl) {
         const constructedUrl = `https://islamicaudio.techrealm.online${location.state.audio_url.startsWith('/') ? location.state.audio_url : '/' + location.state.audio_url}`;
@@ -63,6 +84,8 @@ const SermonPage = () => {
           duration: 8000,
         });
       }
+      
+      handlePrefetchNext();
     } else {
       handleGenerateNew();
     }
@@ -153,24 +176,23 @@ const SermonPage = () => {
     setAudioError(false);
     
     try {
-      toast.loading('Creating a new sermon...', { 
-        description: 'Please wait while we generate your sermon.',
+      toast.loading('Creating new sermons...', { 
+        description: 'Please wait while we generate your sermons.',
         duration: Infinity,
         id: 'new-sermon-generation'
       });
       
-      const newSermon = await generateSermon(purpose);
-      if (newSermon) {
-        setSermon(newSermon);
+      const newSermons = await generateBatchSermons(purpose, 3);
+      if (newSermons && newSermons.length > 0) {
+        setSermonHistory(newSermons);
+        setCurrentIndex(0);
+        setSermon(newSermons[0]);
         
-        console.log("Sermon generated with:");
-        console.log("- Raw audio URL:", newSermon.audio_url);
-        console.log("- Full audio URL:", newSermon.fullAudioUrl);
-        console.log("- Complete constructed URL:", newSermon.fullAudioUrl || 
-          (newSermon.audio_url ? `https://islamicaudio.techrealm.online${newSermon.audio_url.startsWith('/') ? newSermon.audio_url : '/' + newSermon.audio_url}` : ''));
+        console.log("Sermons generated:", newSermons.length);
+        console.log("- Current sermon with audio URL:", newSermons[0].audio_url);
         
-        if (!newSermon.fullAudioUrl && newSermon.audio_url) {
-          const constructedUrl = `https://islamicaudio.techrealm.online${newSermon.audio_url.startsWith('/') ? newSermon.audio_url : '/' + newSermon.audio_url}`;
+        if (!newSermons[0].fullAudioUrl && newSermons[0].audio_url) {
+          const constructedUrl = `https://islamicaudio.techrealm.online${newSermons[0].audio_url.startsWith('/') ? newSermons[0].audio_url : '/' + newSermons[0].audio_url}`;
           toast.warning('Audio URL issue', {
             description: `Complete audio URL should be: ${constructedUrl}`,
             duration: 8000,
@@ -179,20 +201,85 @@ const SermonPage = () => {
         
         setRetryAttempt(0);
       } else {
-        setShowError('Failed to generate sermon. Please try again.');
+        setShowError('Failed to generate sermons. Please try again.');
       }
       
     } catch (error) {
-      console.error('Error generating new sermon:', error);
+      console.error('Error generating new sermons:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setShowError(errorMessage);
       
-      toast.error('Failed to generate new sermon', {
+      toast.error('Failed to generate new sermons', {
         description: 'Please try again or select a different theme.'
       });
     } finally {
       setGenerating(false);
       toast.dismiss('new-sermon-generation');
+    }
+  };
+
+  const handlePrefetchNext = async () => {
+    if (!isOnline || generating || prefetchingNext) return;
+    
+    setPrefetchingNext(true);
+    
+    try {
+      const newSermons = await generateBatchSermons(purpose, 3);
+      
+      if (newSermons && newSermons.length > 0) {
+        setSermonHistory(prev => [...prev, ...newSermons]);
+        console.log("Prefetched additional sermons:", newSermons.length);
+      }
+    } catch (error) {
+      console.error('Error prefetching sermons:', error);
+    } finally {
+      setPrefetchingNext(false);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentIndex < sermonHistory.length - 1) {
+      const nextIndex = currentIndex + 1;
+      setCurrentIndex(nextIndex);
+      setSermon(sermonHistory[nextIndex]);
+      setAudioError(false);
+      
+      if (nextIndex >= sermonHistory.length - 2 && !prefetchingNext) {
+        handlePrefetchNext();
+      }
+    } else if (!prefetchingNext) {
+      handlePrefetchNext();
+      toast.info('Loading more sermons...', {
+        description: 'Please wait while we generate the next sermon.'
+      });
+    }
+  };
+
+  const handlePrevious = () => {
+    if (currentIndex > 0) {
+      const prevIndex = currentIndex - 1;
+      setCurrentIndex(prevIndex);
+      setSermon(sermonHistory[prevIndex]);
+      setAudioError(false);
+    } else {
+      toast.info('You are at the first sermon', {
+        description: 'There are no previous sermons available.'
+      });
+    }
+  };
+
+  const toggleForeverMode = () => {
+    setForeverMode(prev => !prev);
+    toast.success(foreverMode ? 'Forever mode disabled' : 'Forever mode enabled', {
+      description: foreverMode 
+        ? 'Auto-play of next sermons has been disabled' 
+        : 'Sermons will auto-play continuously'
+    });
+  };
+
+  const handleAudioEnded = () => {
+    if (foreverMode) {
+      handleNext();
     }
   };
 
@@ -375,6 +462,9 @@ const SermonPage = () => {
   console.log("- Raw URL:", rawAudioUrl);
   console.log("- Full URL:", audioUrl);
   console.log("- Complete constructed URL:", completeAudioUrl);
+  console.log("- Current index:", currentIndex);
+  console.log("- Sermon history length:", sermonHistory.length);
+  console.log("- Forever mode:", foreverMode);
 
   return (
     <SermonPlayer
@@ -385,6 +475,16 @@ const SermonPage = () => {
       onClose={handleClose}
       onGenerateNew={handleGenerateNew}
       hasError={!!showError || audioError}
+      onPrevious={handlePrevious}
+      onNext={handleNext}
+      hasPrevious={currentIndex > 0}
+      hasNext={currentIndex < sermonHistory.length - 1 || !prefetchingNext}
+      isLoadingNext={prefetchingNext && currentIndex === sermonHistory.length - 1}
+      onForeverModeToggle={toggleForeverMode}
+      foreverMode={foreverMode}
+      onAudioEnded={handleAudioEnded}
+      currentIndex={currentIndex}
+      totalSermons={sermonHistory.length}
     />
   );
 };

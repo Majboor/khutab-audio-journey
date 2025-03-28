@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, AlertTriangle, ExternalLink } from 'lucide-react';
+import { X, Play, Pause, SkipBack, SkipForward, Volume2, Volume1, VolumeX, AlertTriangle, ExternalLink, Repeat, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Badge } from "@/components/ui/badge";
 
 interface SermonPlayerProps {
   title: string;
@@ -14,6 +15,16 @@ interface SermonPlayerProps {
   onClose: () => void;
   onGenerateNew: () => void;
   hasError?: boolean;
+  onPrevious?: () => void;
+  onNext?: () => void;
+  hasPrevious?: boolean;
+  hasNext?: boolean;
+  isLoadingNext?: boolean;
+  onForeverModeToggle?: () => void;
+  foreverMode?: boolean;
+  onAudioEnded?: () => void;
+  currentIndex?: number;
+  totalSermons?: number;
 }
 
 const SermonPlayer: React.FC<SermonPlayerProps> = ({
@@ -24,6 +35,16 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   onClose,
   onGenerateNew,
   hasError = false,
+  onPrevious,
+  onNext,
+  hasPrevious = false,
+  hasNext = true,
+  isLoadingNext = false,
+  onForeverModeToggle,
+  foreverMode = false,
+  onAudioEnded,
+  currentIndex = 0,
+  totalSermons = 1,
 }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -90,6 +111,13 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     setAudioError(true);
     setAudioLoading(false);
     setIsPlaying(false);
+  };
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+    if (onAudioEnded) {
+      onAudioEnded();
+    }
   };
 
   const togglePlayPause = () => {
@@ -187,6 +215,8 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
       setAudioError(false);
       setAudioLoading(true);
       setAudioInitialized(false);
+      setIsPlaying(false);
+      setCurrentTime(0);
       
       try {
         // Stop any current playback
@@ -270,6 +300,13 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
 
   const VolumeIcon = isMuted ? VolumeX : volume > 0.5 ? Volume2 : Volume1;
 
+  // Auto-play when in forever mode
+  useEffect(() => {
+    if (foreverMode && !isPlaying && !audioLoading && !audioError && !hasError && audioInitialized) {
+      togglePlayPause();
+    }
+  }, [foreverMode, audioLoading, audioInitialized, audioError, hasError]);
+
   return (
     <div 
       ref={containerRef}
@@ -300,14 +337,39 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
             <X className="h-6 w-6" />
           </Button>
           
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/20"
-            onClick={onGenerateNew}
-          >
-            Generate New
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Badge 
+              variant="outline" 
+              className="bg-white/10 backdrop-blur-md text-white"
+            >
+              {currentIndex + 1} of {totalSermons}
+            </Badge>
+            
+            <Button
+              variant={foreverMode ? "default" : "ghost"}
+              size="sm"
+              className={cn(
+                "rounded-full backdrop-blur-md text-white",
+                foreverMode ? "bg-primary hover:bg-primary/90" : "bg-white/10 hover:bg-white/20"
+              )}
+              onClick={onForeverModeToggle}
+            >
+              <Repeat className={cn(
+                "h-4 w-4 mr-1",
+                foreverMode && "text-primary-foreground"
+              )} />
+              Forever Mode
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-full bg-white/10 backdrop-blur-md text-white hover:bg-white/20"
+              onClick={onGenerateNew}
+            >
+              Generate New
+            </Button>
+          </div>
         </div>
         
         <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-auto">
@@ -359,7 +421,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onLoadedData={handleLoadedData}
-            onEnded={() => setIsPlaying(false)}
+            onEnded={handleAudioEnded}
             onError={handleAudioError}
             preload="auto"
             className="hidden"
@@ -400,7 +462,20 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                 />
               </div>
               
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className={cn(
+                    "rounded-full text-white",
+                    hasPrevious ? "hover:bg-white/10" : "opacity-50 cursor-not-allowed"
+                  )}
+                  onClick={onPrevious}
+                  disabled={!hasPrevious}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -442,9 +517,40 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                 >
                   <SkipForward className="h-5 w-5" />
                 </Button>
+                
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className={cn(
+                    "rounded-full text-white",
+                    !hasNext || isLoadingNext ? "opacity-50" : "hover:bg-white/10"
+                  )}
+                  onClick={onNext}
+                  disabled={!hasNext || isLoadingNext}
+                >
+                  {isLoadingNext ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <ArrowRight className="h-5 w-5" />
+                  )}
+                </Button>
               </div>
               
-              <div className="w-[100px]"></div>
+              <div className="w-[100px] flex items-center justify-end">
+                <Button
+                  variant={foreverMode ? "default" : "ghost"} 
+                  size="sm"
+                  className={cn(
+                    "rounded-full h-8",
+                    foreverMode 
+                      ? "bg-primary/90 text-primary-foreground hover:bg-primary" 
+                      : "bg-white/10 text-white hover:bg-white/20"
+                  )}
+                  onClick={onForeverModeToggle}
+                >
+                  <Repeat className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
