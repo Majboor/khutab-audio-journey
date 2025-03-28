@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 
 // Base URL for the API
-const API_BASE_URL = 'https://islamicaudio.techrealm.online';
+export const API_BASE_URL = 'https://islamicaudio.techrealm.online';
 
 export interface Sermon {
   audio_url: string;
