@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate, Link } from 'react-router-dom';
@@ -114,11 +113,9 @@ const Index = () => {
   };
 
   const handleAudioPreview = (audioPath: string, title: string) => {
-    // Convert relative path to full URL
     const fullUrl = `${API_BASE_URL}${audioPath}`;
     setAudioPreview({url: fullUrl, title});
     
-    // Show toast notification
     toast.success('Audio preview ready', {
       description: 'Click play to listen to the sermon',
       duration: 3000
@@ -138,7 +135,6 @@ const Index = () => {
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-secondary/50 to-background">
       <Header />
       
-      {/* Hero Section */}
       <section className="relative py-20 px-4 sm:px-6 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-secondary/5 z-0"></div>
         <div className="max-w-5xl mx-auto relative z-10">
@@ -150,7 +146,7 @@ const Index = () => {
               Discover a new way to connect with Islamic teachings through AI-generated sermons that inspire, educate, and uplift your spiritual journey.
             </p>
             
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex justify-center">
               <Button 
                 onClick={handleCreateNew}
                 className="animate-pulse-subtle text-lg px-8 py-6 h-auto"
@@ -159,23 +155,11 @@ const Index = () => {
                 <PlusCircle className="mr-2 h-5 w-5" />
                 Generate New Sermon
               </Button>
-              
-              <Link to="/api-test">
-                <Button 
-                  variant="outline"
-                  size="lg"
-                  className="text-lg px-8 py-6 h-auto"
-                >
-                  <Server className="mr-2 h-5 w-5" />
-                  API Testing
-                </Button>
-              </Link>
             </div>
           </div>
         </div>
       </section>
       
-      {/* Features Section */}
       <section className="py-16 px-4 sm:px-6 bg-secondary/30">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
@@ -201,7 +185,6 @@ const Index = () => {
         </div>
       </section>
       
-      {/* Categories Section */}
       <section className="py-16 px-4 sm:px-6">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
@@ -226,7 +209,6 @@ const Index = () => {
         </div>
       </section>
       
-      {/* How It Works Section */}
       <section className="py-16 px-4 sm:px-6 bg-gradient-to-r from-secondary/20 to-primary/5">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
@@ -264,7 +246,6 @@ const Index = () => {
         </div>
       </section>
       
-      {/* Testimonials Section */}
       <section className="py-16 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
@@ -295,7 +276,6 @@ const Index = () => {
         </div>
       </section>
       
-      {/* CTA Section */}
       <section className="py-16 px-4 sm:px-6 bg-primary/5">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to Start Your Spiritual Journey?</h2>
@@ -340,7 +320,6 @@ const Index = () => {
         selectedCategory={selectedCategory}
       />
 
-      {/* Audio Preview Popover */}
       {audioPreview && (
         <Popover open={!!audioPreview} onOpenChange={() => closeAudioPreview()}>
           <PopoverContent className="w-80 p-4" side="top">
@@ -362,7 +341,6 @@ const Index = () => {
         </Popover>
       )}
 
-      {/* Alert Dialog for notifications */}
       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
