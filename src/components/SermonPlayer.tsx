@@ -158,18 +158,24 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
-  // Remove autoplay behavior that was causing issues
+  // Explicitly set the audio src when component mounts
   useEffect(() => {
     if (audioRef.current && !hasError) {
       setAudioError(false);
       setAudioLoading(true);
       
+      // Make sure the audio element uses the complete URL
+      audioRef.current.src = completeAudioUrl;
+      
       // Don't auto-play, just load the audio
       audioRef.current.load();
+      
+      console.log("Audio source set to:", completeAudioUrl);
       
       return () => {
         if (audioRef.current) {
           audioRef.current.pause();
+          audioRef.current.src = "";
         }
       };
     }
@@ -263,7 +269,6 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
         <div className="p-6 glass border-t border-white/10">
           <audio 
             ref={audioRef}
-            src={completeAudioUrl}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onLoadedData={handleLoadedData}
