@@ -96,14 +96,25 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
+        setIsPlaying(false);
       } else {
-        audioRef.current.play().catch(error => {
-          console.error('Error playing audio:', error);
-          console.error('Audio URL that failed:', completeAudioUrl);
-          setAudioError(true);
-        });
+        // Add explicit promise handling for play()
+        const playPromise = audioRef.current.play();
+        
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              setIsPlaying(true);
+              console.log("Audio playback started successfully");
+            })
+            .catch(error => {
+              console.error('Error playing audio:', error);
+              console.error('Audio URL that failed:', completeAudioUrl);
+              setAudioError(true);
+              setIsPlaying(false);
+            });
+        }
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
@@ -147,24 +158,16 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
+  // Remove autoplay behavior that was causing issues
   useEffect(() => {
     if (audioRef.current && !hasError) {
       setAudioError(false);
       setAudioLoading(true);
       
-      const playTimer = setTimeout(() => {
-        if (audioRef.current) {
-          audioRef.current.play().catch((error) => {
-            console.error('Auto-play failed:', error);
-            console.error('Audio URL that failed to auto-play:', completeAudioUrl);
-            setAudioError(true);
-          });
-          setIsPlaying(true);
-        }
-      }, 1000);
+      // Don't auto-play, just load the audio
+      audioRef.current.load();
       
       return () => {
-        clearTimeout(playTimer);
         if (audioRef.current) {
           audioRef.current.pause();
         }
