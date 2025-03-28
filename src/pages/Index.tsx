@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate, Link } from 'react-router-dom';
@@ -5,8 +6,11 @@ import Header from '@/components/Header';
 import CategoryCard from '@/components/CategoryCard';
 import GenerateKhutabModal from '@/components/GenerateKhutabModal';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Server } from 'lucide-react';
+import { PlusCircle, Server, Volume2 } from 'lucide-react';
 import useSermon from '@/hooks/useSermon';
+import { API_BASE_URL } from '@/lib/api';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from '@/components/ui/alert-dialog';
 
 const categories = [
   {
@@ -44,6 +48,9 @@ const categories = [
 const Index = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
+  const [audioPreview, setAudioPreview] = useState<{url: string, title: string} | null>(null);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [alertContent, setAlertContent] = useState({title: '', message: ''});
   const { loading, generateSermon } = useSermon();
   const navigate = useNavigate();
 
@@ -55,6 +62,27 @@ const Index = () => {
   const handleCreateNew = () => {
     setSelectedCategory(undefined);
     setIsModalOpen(true);
+  };
+
+  const handleAudioPreview = (audioPath: string, title: string) => {
+    // Convert relative path to full URL
+    const fullUrl = `${API_BASE_URL}${audioPath}`;
+    setAudioPreview({url: fullUrl, title});
+    
+    // Show toast notification
+    toast.success('Audio preview ready', {
+      description: 'Click play to listen to the sermon',
+      duration: 3000
+    });
+  };
+
+  const showAlert = (title: string, message: string) => {
+    setAlertContent({title, message});
+    setIsAlertOpen(true);
+  };
+
+  const closeAudioPreview = () => {
+    setAudioPreview(null);
   };
 
   return (
@@ -118,6 +146,45 @@ const Index = () => {
         onOpenChange={setIsModalOpen}
         selectedCategory={selectedCategory}
       />
+
+      {/* Audio Preview Popover */}
+      {audioPreview && (
+        <Popover open={!!audioPreview} onOpenChange={() => closeAudioPreview()}>
+          <PopoverContent className="w-80 p-4" side="top">
+            <div className="space-y-2">
+              <h3 className="font-medium text-lg flex items-center">
+                <Volume2 className="w-4 h-4 mr-2" /> {audioPreview.title}
+              </h3>
+              <audio 
+                controls 
+                src={audioPreview.url} 
+                className="w-full"
+                autoPlay
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                URL: <code className="bg-muted px-1 py-0.5 rounded text-[10px]">{audioPreview.url}</code>
+              </p>
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+
+      {/* Alert Dialog for notifications */}
+      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{alertContent.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {alertContent.message}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex justify-end">
+            <Button onClick={() => setIsAlertOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

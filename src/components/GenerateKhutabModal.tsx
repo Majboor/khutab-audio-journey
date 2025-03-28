@@ -2,11 +2,12 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader } from 'lucide-react';
+import { Loader, Play } from 'lucide-react';
 import { generateKhutba } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { API_BASE_URL } from '@/lib/api';
 
 interface GenerateKhutabModalProps {
   open: boolean;
@@ -21,6 +22,7 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [purpose, setPurpose] = useState(selectedCategory || 'patience');
+  const [previewData, setPreviewData] = useState<any>(null);
   const { toast: uiToast } = useToast();
   const navigate = useNavigate();
 
@@ -37,6 +39,8 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
   const handleGenerateKhutba = async () => {
     try {
       setLoading(true);
+      setPreviewData(null);
+      
       // Show loading toast
       toast.loading('Generating your sermon...', {
         description: 'This may take 20-30 seconds',
@@ -47,8 +51,23 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
       // Use a direct POST request approach
       const sermon = await generateKhutba(purpose);
       
+      // Process the audio URL if it exists
+      if (sermon && sermon.audio_url) {
+        sermon.fullAudioUrl = `${API_BASE_URL}${sermon.audio_url}`;
+        console.log("Full audio URL:", sermon.fullAudioUrl);
+      }
+      
+      // Set preview data for audio player
+      setPreviewData(sermon);
+      
       // Dismiss the loading toast
       toast.dismiss('sermon-generation');
+      
+      // Show success toast
+      toast.success('Sermon generated successfully!', {
+        description: 'Your sermon is ready to be viewed',
+        duration: 3000
+      });
       
       // Navigate to the sermon page with the sermon data
       navigate('/sermon', { state: sermon });
@@ -68,6 +87,29 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const renderAudioPreview = () => {
+    if (!previewData || !previewData.audio_url) return null;
+    
+    const audioUrl = previewData.fullAudioUrl || `${API_BASE_URL}${previewData.audio_url}`;
+    
+    return (
+      <div className="mt-4 p-4 bg-muted rounded-md">
+        <h4 className="font-medium mb-2 flex items-center">
+          <Play className="w-4 h-4 mr-2" /> Audio Preview
+        </h4>
+        <audio 
+          controls 
+          src={audioUrl} 
+          className="w-full"
+        />
+        <div className="mt-2 text-xs text-muted-foreground">
+          <p>Original URL: <code>{previewData.audio_url}</code></p>
+          <p>Full URL: <code>{audioUrl}</code></p>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -95,6 +137,8 @@ const GenerateKhutabModal: React.FC<GenerateKhutabModalProps> = ({
               </Button>
             ))}
           </div>
+          
+          {previewData && renderAudioPreview()}
           
           <Button 
             className="w-full mt-6"
