@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Sermon } from '@/lib/api';
 import SermonPlayer from '@/components/SermonPlayer';
 import useSermon from '@/hooks/useSermon';
-import { Loader, AlertTriangle, WifiOff, RotateCw, RefreshCw, Wifi, ExternalLink } from 'lucide-react';
+import { Loader, AlertTriangle, WifiOff, RotateCw, RefreshCw, Wifi, ExternalLink, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,8 @@ const SermonPage = () => {
     generateBatchSermons, 
     loading: hookLoading, 
     error: hookError, 
-    networkError: hookNetworkError, 
+    networkError: hookNetworkError,
+    authError: hookAuthError, 
     retryCount, 
     isOnline 
   } = useSermon();
@@ -379,58 +380,92 @@ const SermonPage = () => {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-black">
         <div className="text-center text-white max-w-md px-4">
-          {hookNetworkError ? (
+          {hookAuthError ? (
+            <Lock className="h-12 w-12 mx-auto mb-6 text-yellow-500" />
+          ) : hookNetworkError ? (
             <WifiOff className="h-12 w-12 mx-auto mb-6 text-red-500" />
           ) : (
             <Loader className="h-12 w-12 animate-spin mx-auto mb-6" />
           )}
           
           <p className="text-lg font-medium mb-2">
-            {hookNetworkError ? 'Network Connection Error' : 'Generating sermon...'}
+            {hookAuthError 
+              ? 'Authentication Required' 
+              : hookNetworkError 
+                ? 'Network Connection Error' 
+                : 'Generating sermon...'}
           </p>
           
           <p className="text-sm text-white/70 mb-6">
-            {hookNetworkError 
-              ? 'Unable to connect to sermon server' 
-              : 'This may take 15-20 seconds'}
+            {hookAuthError 
+              ? 'The sermon server requires authentication' 
+              : hookNetworkError 
+                ? 'Unable to connect to sermon server' 
+                : 'This may take 15-20 seconds'}
           </p>
           
           <div className="w-full max-w-md mb-8">
             <Progress 
-              value={hookNetworkError ? 100 : loadingProgress} 
-              className={`h-2 ${hookNetworkError ? 'bg-red-900/30' : 'bg-white/10'}`} 
+              value={hookNetworkError || hookAuthError ? 100 : loadingProgress} 
+              className={`h-2 ${
+                hookAuthError 
+                  ? 'bg-yellow-900/30' 
+                  : hookNetworkError 
+                    ? 'bg-red-900/30' 
+                    : 'bg-white/10'
+              }`} 
             />
-            {!hookNetworkError && (
+            {!hookNetworkError && !hookAuthError && (
               <p className="text-xs text-white/50 mt-2 text-right">{Math.round(loadingProgress)}%</p>
             )}
           </div>
           
-          {hookNetworkError && (
-            <Alert variant="destructive" className="mt-4 bg-red-900/60 border-red-800 text-white">
+          {(hookNetworkError || hookAuthError) && (
+            <Alert 
+              variant="destructive" 
+              className={`mt-4 ${
+                hookAuthError 
+                  ? 'bg-yellow-900/60 border-yellow-800' 
+                  : 'bg-red-900/60 border-red-800'
+              } text-white`}
+            >
               <div className="flex items-center mb-2">
-                <WifiOff className="h-5 w-5 mr-2" />
-                <AlertTitle>Connection Error</AlertTitle>
+                {hookAuthError ? (
+                  <>
+                    <Lock className="h-5 w-5 mr-2" />
+                    <AlertTitle>Authentication Error</AlertTitle>
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="h-5 w-5 mr-2" />
+                    <AlertTitle>Connection Error</AlertTitle>
+                  </>
+                )}
               </div>
               <AlertDescription className="mt-2 text-white/90">
-                Unable to connect to sermon server. Please check your internet connection.
+                {hookAuthError 
+                  ? 'The sermon server requires authentication. Using sample sermons instead.' 
+                  : 'Unable to connect to sermon server. Please check your internet connection.'}
                 
                 <div className="mt-4 flex flex-col gap-2">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center">
-                      <div className={`w-3 h-3 rounded-full mr-2 ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      <span className="text-sm">{isOnline ? 'Online' : 'Offline'}</span>
+                  {!hookAuthError && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center">
+                        <div className={`w-3 h-3 rounded-full mr-2 ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                        <span className="text-sm">{isOnline ? 'Online' : 'Offline'}</span>
+                      </div>
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                        onClick={checkNetworkStatus}
+                      >
+                        <Wifi className="h-3 w-3 mr-1" />
+                        Check Status
+                      </Button>
                     </div>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-                      onClick={checkNetworkStatus}
-                    >
-                      <Wifi className="h-3 w-3 mr-1" />
-                      Check Status
-                    </Button>
-                  </div>
+                  )}
                   
                   <div className="flex items-center justify-between mt-2 text-xs text-white/70">
                     <span>API Endpoint:</span>
@@ -449,7 +484,7 @@ const SermonPage = () => {
                       variant="outline" 
                       className="bg-white/10 border-white/30 text-white hover:bg-white/20"
                       onClick={handleRetry}
-                      disabled={!isOnline}
+                      disabled={!isOnline && !hookAuthError}
                     >
                       {retryAttempt > 0 ? (
                         <>

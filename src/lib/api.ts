@@ -10,7 +10,7 @@ export interface Sermon {
   title: string;
   fullAudioUrl?: string; // We'll add this with the complete URL
   purpose?: string;      // Track the purpose for retries
-  errorType?: 'network' | 'server' | 'other'; // Error type property
+  errorType?: 'network' | 'server' | 'auth' | 'other'; // Added 'auth' error type
 }
 
 // Sample sermon data for fallback/development purposes
@@ -101,6 +101,14 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           const errorData = await response.text();
           const errorMessage = `Server responded with ${response.status}: ${response.statusText}. ${errorData}`;
           console.error(errorMessage);
+          
+          // Check for auth errors
+          if (response.status === 401 || 
+              (errorData && errorData.includes('Unauthenticated')) || 
+              (errorData && errorData.includes('authentication token'))) {
+            throw new Error("authentication_required");
+          }
+          
           throw new Error(errorMessage);
         }
 
@@ -133,7 +141,15 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
         lastError = error instanceof Error ? error : new Error('Unknown error');
         console.error(`API attempt ${retryCount + 1} failed:`, lastError);
         
-        // Check if we should retry
+        // Check for auth errors first
+        if (lastError.message === "authentication_required" || 
+            lastError.message.includes('authentication') || 
+            lastError.message.includes('Unauthenticated')) {
+          // Don't retry auth errors
+          break;
+        }
+        
+        // Check if we should retry other errors
         const isNetworkError = 
           lastError.message.includes('Failed to fetch') || 
           lastError.message.includes('Network error') ||
@@ -162,7 +178,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     
     // Determine error type
     let errorMessage: string;
-    let errorType: 'network' | 'server' | 'other' = 'other';
+    let errorType: 'network' | 'server' | 'auth' | 'other' = 'other';
     
     if (error instanceof Error) {
       errorMessage = error.message;
@@ -171,6 +187,16 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
       if (error.message === 'network_offline') {
         errorType = 'network';
         errorMessage = 'Your device is offline. Please check your internet connection.';
+      }
+      // Check for authentication errors
+      else if (
+        error.message === 'authentication_required' ||
+        error.message.includes('authentication') ||
+        error.message.includes('Unauthenticated') ||
+        error.message.includes('auth token')
+      ) {
+        errorType = 'auth';
+        errorMessage = 'Authentication required. The API requires authentication credentials.';
       }
       // Check for other network errors
       else if (
@@ -204,6 +230,11 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     } else if (errorType === 'server') {
       toast.error('Server Error', {
         description: errorMessage,
+        duration: 8000,
+      });
+    } else if (errorType === 'auth') {
+      toast.error('Authentication Error', {
+        description: 'The sermon server requires authentication. Using sample sermons instead.',
         duration: 8000,
       });
     } else {

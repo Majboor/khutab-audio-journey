@@ -8,6 +8,7 @@ export const useSermon = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [networkError, setNetworkError] = useState(false);
+  const [authError, setAuthError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [lastAttemptTime, setLastAttemptTime] = useState<number | null>(null);
   const [onlineStatus, setOnlineStatus] = useState<boolean>(isOnline());
@@ -44,19 +45,21 @@ export const useSermon = () => {
 
   // Reset network error if it's been more than 15 seconds since the last attempt
   useEffect(() => {
-    if (networkError && lastAttemptTime) {
+    if ((networkError || authError) && lastAttemptTime) {
       const now = Date.now();
       if (now - lastAttemptTime > 15000) { // 15 seconds
         setNetworkError(false);
+        setAuthError(false);
       }
     }
-  }, [networkError, lastAttemptTime]);
+  }, [networkError, authError, lastAttemptTime]);
 
   const generateSermon = async (purpose: string) => {
     try {
       setLoading(true);
       setError(null);
       setNetworkError(false);
+      setAuthError(false);
       setLastAttemptTime(Date.now());
       
       // Check if we're online before attempting to fetch
@@ -78,10 +81,15 @@ export const useSermon = () => {
       clearTimeout(timeoutId);
       
       // If the sermon has an error type attached, handle appropriately
-      if (newSermon && 'errorType' in newSermon && newSermon.errorType === 'network') {
-        setNetworkError(true);
+      if (newSermon && 'errorType' in newSermon) {
+        if (newSermon.errorType === 'network') {
+          setNetworkError(true);
+        } else if (newSermon.errorType === 'auth') {
+          setAuthError(true);
+        }
       } else {
         setNetworkError(false);
+        setAuthError(false);
       }
       
       setSermon(newSermon);
@@ -102,10 +110,21 @@ export const useSermon = () => {
          error.message.includes('time') ||
          error.message.includes('AbortError'));
          
+      const isAuthError = error instanceof Error &&
+        (error.message.includes('authentication') ||
+         error.message.includes('Unauthenticated') ||
+         error.message.includes('auth'));
+         
       if (isNetworkError) {
         setNetworkError(true);
         toast.error('Network Connection Error', {
           description: 'Unable to connect to sermon server. Please check your internet connection.',
+          duration: 8000,
+        });
+      } else if (isAuthError) {
+        setAuthError(true);
+        toast.error('Authentication Error', {
+          description: 'The sermon server requires authentication. Using sample sermons instead.',
           duration: 8000,
         });
       } else {
@@ -247,6 +266,15 @@ export const useSermon = () => {
       });
       return null;
     }
+    
+    // If there was an auth error, warn the user
+    if (authError) {
+      toast.warning('Authentication Required', {
+        description: 'The sermon server requires authentication. Using sample sermons instead.',
+        duration: 5000,
+      });
+    }
+    
     return generateSermon(purpose);
   };
 
@@ -255,6 +283,7 @@ export const useSermon = () => {
     loading,
     error,
     networkError,
+    authError,
     retryCount,
     generateSermon,
     generateBatchSermons,
