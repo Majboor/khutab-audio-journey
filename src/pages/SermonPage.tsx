@@ -45,8 +45,11 @@ const SermonPage = () => {
     '');
 
   useEffect(() => {
-    if (foreverMode && !generating && !prefetchingNext && sermonHistory.length > 0 && currentIndex === sermonHistory.length - 1) {
-      handlePrefetchNext();
+    if (foreverMode && !generating && !prefetchingNext && sermonHistory.length > 0) {
+      if (currentIndex >= sermonHistory.length - 2) {
+        console.log("Forever mode active and approaching end of sermon history, prefetching more");
+        handlePrefetchNext();
+      }
     }
   }, [foreverMode, generating, prefetchingNext, sermonHistory.length, currentIndex]);
 
@@ -190,6 +193,7 @@ const SermonPage = () => {
         
         console.log("Sermons generated:", newSermons.length);
         console.log("- Current sermon with audio URL:", newSermons[0].audio_url);
+        console.log("- Full audio URL:", newSermons[0].fullAudioUrl);
         
         if (!newSermons[0].fullAudioUrl && newSermons[0].audio_url) {
           const constructedUrl = `https://islamicaudio.techrealm.online${newSermons[0].audio_url.startsWith('/') ? newSermons[0].audio_url : '/' + newSermons[0].audio_url}`;
@@ -221,6 +225,7 @@ const SermonPage = () => {
   const handlePrefetchNext = async () => {
     if (!isOnline || generating || prefetchingNext) return;
     
+    console.log("Prefetching additional sermons...");
     setPrefetchingNext(true);
     
     try {
@@ -229,6 +234,7 @@ const SermonPage = () => {
       if (newSermons && newSermons.length > 0) {
         setSermonHistory(prev => [...prev, ...newSermons]);
         console.log("Prefetched additional sermons:", newSermons.length);
+        console.log("Updated sermon history length:", sermonHistory.length + newSermons.length);
       }
     } catch (error) {
       console.error('Error prefetching sermons:', error);
@@ -238,26 +244,34 @@ const SermonPage = () => {
   };
 
   const handleNext = () => {
+    console.log("Next button clicked, current index:", currentIndex, "total sermons:", sermonHistory.length);
+    
     if (currentIndex < sermonHistory.length - 1) {
       const nextIndex = currentIndex + 1;
+      console.log("Moving to next sermon at index:", nextIndex);
       setCurrentIndex(nextIndex);
       setSermon(sermonHistory[nextIndex]);
       setAudioError(false);
       
       if (nextIndex >= sermonHistory.length - 2 && !prefetchingNext) {
+        console.log("Approaching end of sermon history, prefetching more");
         handlePrefetchNext();
       }
     } else if (!prefetchingNext) {
+      console.log("At end of sermon history, prefetching more");
       handlePrefetchNext();
       toast.info('Loading more sermons...', {
         description: 'Please wait while we generate the next sermon.'
       });
+    } else {
+      console.log("Already prefetching, waiting for more sermons");
     }
   };
 
   const handlePrevious = () => {
     if (currentIndex > 0) {
       const prevIndex = currentIndex - 1;
+      console.log("Moving to previous sermon at index:", prevIndex);
       setCurrentIndex(prevIndex);
       setSermon(sermonHistory[prevIndex]);
       setAudioError(false);
@@ -269,16 +283,25 @@ const SermonPage = () => {
   };
 
   const toggleForeverMode = () => {
-    setForeverMode(prev => !prev);
-    toast.success(foreverMode ? 'Forever mode disabled' : 'Forever mode enabled', {
-      description: foreverMode 
-        ? 'Auto-play of next sermons has been disabled' 
-        : 'Sermons will auto-play continuously'
+    const newMode = !foreverMode;
+    setForeverMode(newMode);
+    console.log("Forever mode toggled:", newMode);
+    
+    toast.success(newMode ? 'Forever mode enabled' : 'Forever mode disabled', {
+      description: newMode 
+        ? 'Sermons will auto-play continuously' 
+        : 'Auto-play of next sermons has been disabled'
     });
+    
+    if (newMode && currentIndex >= sermonHistory.length - 2 && !prefetchingNext) {
+      handlePrefetchNext();
+    }
   };
 
   const handleAudioEnded = () => {
+    console.log("Audio ended callback triggered, forever mode:", foreverMode);
     if (foreverMode) {
+      console.log("Forever mode active, advancing to next sermon");
       handleNext();
     }
   };

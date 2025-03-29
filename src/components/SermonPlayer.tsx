@@ -55,6 +55,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   const [audioError, setAudioError] = useState(false);
   const [audioLoading, setAudioLoading] = useState(true);
   const [audioInitialized, setAudioInitialized] = useState(false);
+  const [audioEnded, setAudioEnded] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -102,6 +103,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     setAudioLoading(false);
     setAudioError(false);
     setAudioInitialized(true);
+    setAudioEnded(false);
     console.log("Audio data loaded successfully");
   };
 
@@ -114,8 +116,12 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   };
 
   const handleAudioEnded = () => {
+    console.log("Audio playback ended, foreverMode:", foreverMode);
     setIsPlaying(false);
-    if (onAudioEnded) {
+    setAudioEnded(true);
+    
+    if (onAudioEnded && foreverMode) {
+      console.log("Triggering onAudioEnded callback for forever mode");
       onAudioEnded();
     }
   };
@@ -129,6 +135,12 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
+      // Reset audio position if it has ended
+      if (audioEnded && audioRef.current.currentTime >= audioRef.current.duration) {
+        audioRef.current.currentTime = 0;
+        setAudioEnded(false);
+      }
+      
       // Create a new audio context if needed to help initiate playback
       if (!audioInitialized && window.AudioContext) {
         const audioContext = new AudioContext();
@@ -162,6 +174,11 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
     if (audioRef.current) {
       audioRef.current.currentTime = value[0];
       setCurrentTime(value[0]);
+      
+      // If the audio had ended and user seeks back, reset the ended state
+      if (audioEnded) {
+        setAudioEnded(false);
+      }
     }
   };
 
@@ -217,6 +234,7 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
       setAudioInitialized(false);
       setIsPlaying(false);
       setCurrentTime(0);
+      setAudioEnded(false);
       
       try {
         // Stop any current playback
@@ -303,9 +321,23 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
   // Auto-play when in forever mode
   useEffect(() => {
     if (foreverMode && !isPlaying && !audioLoading && !audioError && !hasError && audioInitialized) {
+      console.log("Forever mode detected, attempting to auto-play");
       togglePlayPause();
     }
-  }, [foreverMode, audioLoading, audioInitialized, audioError, hasError]);
+  }, [foreverMode, audioInitialized, audioLoading, audioError, hasError]);
+
+  // Monitor audio ended state for forever mode
+  useEffect(() => {
+    if (audioEnded && foreverMode && !isPlaying && onNext && hasNext) {
+      console.log("Audio ended in forever mode, proceeding to next sermon");
+      // Small timeout to prevent rapid transitions
+      const nextTimer = setTimeout(() => {
+        onNext();
+      }, 1000);
+      
+      return () => clearTimeout(nextTimer);
+    }
+  }, [audioEnded, foreverMode, isPlaying, onNext, hasNext]);
 
   return (
     <div 
@@ -483,6 +515,10 @@ const SermonPlayer: React.FC<SermonPlayerProps> = ({
                   onClick={() => {
                     if (audioRef.current) {
                       audioRef.current.currentTime = Math.max(0, currentTime - 10);
+                      // Reset ended state if user skips back
+                      if (audioEnded) {
+                        setAudioEnded(false);
+                      }
                     }
                   }}
                   disabled={audioError || hasError || audioLoading}
