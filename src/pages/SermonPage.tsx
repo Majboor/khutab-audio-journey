@@ -3,11 +3,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Sermon } from '@/lib/api';
 import SermonPlayer from '@/components/SermonPlayer';
 import useSermon from '@/hooks/useSermon';
-import { Loader, AlertTriangle, WifiOff, RotateCw, RefreshCw, Wifi, ExternalLink } from 'lucide-react';
+import { Loader, AlertTriangle, WifiOff, RotateCw, RefreshCw, Wifi, ExternalLink, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import MetaHelmet from '@/components/MetaHelmet';
 
 const SermonPage = () => {
   const location = useLocation();
@@ -18,7 +19,8 @@ const SermonPage = () => {
     generateBatchSermons, 
     loading: hookLoading, 
     error: hookError, 
-    networkError: hookNetworkError, 
+    networkError: hookNetworkError,
+    authError: hookAuthError, 
     retryCount, 
     isOnline 
   } = useSermon();
@@ -45,8 +47,11 @@ const SermonPage = () => {
     '');
 
   useEffect(() => {
-    if (foreverMode && !generating && !prefetchingNext && sermonHistory.length > 0 && currentIndex === sermonHistory.length - 1) {
-      handlePrefetchNext();
+    if (foreverMode && !generating && !prefetchingNext && sermonHistory.length > 0) {
+      if (currentIndex >= sermonHistory.length - 2) {
+        console.log("Forever mode active and approaching end of sermon history, prefetching more");
+        handlePrefetchNext();
+      }
     }
   }, [foreverMode, generating, prefetchingNext, sermonHistory.length, currentIndex]);
 
@@ -190,6 +195,7 @@ const SermonPage = () => {
         
         console.log("Sermons generated:", newSermons.length);
         console.log("- Current sermon with audio URL:", newSermons[0].audio_url);
+        console.log("- Full audio URL:", newSermons[0].fullAudioUrl);
         
         if (!newSermons[0].fullAudioUrl && newSermons[0].audio_url) {
           const constructedUrl = `https://islamicaudio.techrealm.online${newSermons[0].audio_url.startsWith('/') ? newSermons[0].audio_url : '/' + newSermons[0].audio_url}`;
@@ -221,6 +227,7 @@ const SermonPage = () => {
   const handlePrefetchNext = async () => {
     if (!isOnline || generating || prefetchingNext) return;
     
+    console.log("Prefetching additional sermons...");
     setPrefetchingNext(true);
     
     try {
@@ -229,6 +236,7 @@ const SermonPage = () => {
       if (newSermons && newSermons.length > 0) {
         setSermonHistory(prev => [...prev, ...newSermons]);
         console.log("Prefetched additional sermons:", newSermons.length);
+        console.log("Updated sermon history length:", sermonHistory.length + newSermons.length);
       }
     } catch (error) {
       console.error('Error prefetching sermons:', error);
@@ -238,26 +246,34 @@ const SermonPage = () => {
   };
 
   const handleNext = () => {
+    console.log("Next button clicked, current index:", currentIndex, "total sermons:", sermonHistory.length);
+    
     if (currentIndex < sermonHistory.length - 1) {
       const nextIndex = currentIndex + 1;
+      console.log("Moving to next sermon at index:", nextIndex);
       setCurrentIndex(nextIndex);
       setSermon(sermonHistory[nextIndex]);
       setAudioError(false);
       
       if (nextIndex >= sermonHistory.length - 2 && !prefetchingNext) {
+        console.log("Approaching end of sermon history, prefetching more");
         handlePrefetchNext();
       }
     } else if (!prefetchingNext) {
+      console.log("At end of sermon history, prefetching more");
       handlePrefetchNext();
       toast.info('Loading more sermons...', {
         description: 'Please wait while we generate the next sermon.'
       });
+    } else {
+      console.log("Already prefetching, waiting for more sermons");
     }
   };
 
   const handlePrevious = () => {
     if (currentIndex > 0) {
       const prevIndex = currentIndex - 1;
+      console.log("Moving to previous sermon at index:", prevIndex);
       setCurrentIndex(prevIndex);
       setSermon(sermonHistory[prevIndex]);
       setAudioError(false);
@@ -269,16 +285,25 @@ const SermonPage = () => {
   };
 
   const toggleForeverMode = () => {
-    setForeverMode(prev => !prev);
-    toast.success(foreverMode ? 'Forever mode disabled' : 'Forever mode enabled', {
-      description: foreverMode 
-        ? 'Auto-play of next sermons has been disabled' 
-        : 'Sermons will auto-play continuously'
+    const newMode = !foreverMode;
+    setForeverMode(newMode);
+    console.log("Forever mode toggled:", newMode);
+    
+    toast.success(newMode ? 'Forever mode enabled' : 'Forever mode disabled', {
+      description: newMode 
+        ? 'Sermons will auto-play continuously' 
+        : 'Auto-play of next sermons has been disabled'
     });
+    
+    if (newMode && currentIndex >= sermonHistory.length - 2 && !prefetchingNext) {
+      handlePrefetchNext();
+    }
   };
 
   const handleAudioEnded = () => {
+    console.log("Audio ended callback triggered, forever mode:", foreverMode);
     if (foreverMode) {
+      console.log("Forever mode active, advancing to next sermon");
       handleNext();
     }
   };
@@ -345,6 +370,11 @@ const SermonPage = () => {
     window.open('https://islamicaudio.techrealm.online/generate-khutab', '_blank');
   };
 
+  const metaTitle = sermon ? `${sermon.title} | Islamic AI Sermons` : 'Loading Sermon | Islamic AI Sermons';
+  const metaDescription = sermon ? 
+    `Listen to "${sermon.title}" - an AI-generated Islamic sermon that provides spiritual guidance and wisdom.` : 
+    'Loading an inspiring AI-generated Islamic sermon. Please wait while we prepare your spiritual content.';
+
   if (showError && sermon) {
     toast.warning('Using backup sermon', {
       description: `${showError}. Complete audio URL: ${completeAudioUrl}`,
@@ -354,107 +384,148 @@ const SermonPage = () => {
 
   if (!sermon || generating) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-black">
-        <div className="text-center text-white max-w-md px-4">
-          {hookNetworkError ? (
-            <WifiOff className="h-12 w-12 mx-auto mb-6 text-red-500" />
-          ) : (
-            <Loader className="h-12 w-12 animate-spin mx-auto mb-6" />
-          )}
-          
-          <p className="text-lg font-medium mb-2">
-            {hookNetworkError ? 'Network Connection Error' : 'Generating sermon...'}
-          </p>
-          
-          <p className="text-sm text-white/70 mb-6">
-            {hookNetworkError 
-              ? 'Unable to connect to sermon server' 
-              : 'This may take 15-20 seconds'}
-          </p>
-          
-          <div className="w-full max-w-md mb-8">
-            <Progress 
-              value={hookNetworkError ? 100 : loadingProgress} 
-              className={`h-2 ${hookNetworkError ? 'bg-red-900/30' : 'bg-white/10'}`} 
-            />
-            {!hookNetworkError && (
-              <p className="text-xs text-white/50 mt-2 text-right">{Math.round(loadingProgress)}%</p>
+      <>
+        <MetaHelmet 
+          title={metaTitle}
+          description={metaDescription}
+          path="/sermon"
+        />
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-black">
+          <div className="text-center text-white max-w-md px-4">
+            {hookAuthError ? (
+              <Lock className="h-12 w-12 mx-auto mb-6 text-yellow-500" />
+            ) : hookNetworkError ? (
+              <WifiOff className="h-12 w-12 mx-auto mb-6 text-red-500" />
+            ) : (
+              <Loader className="h-12 w-12 animate-spin mx-auto mb-6" />
             )}
-          </div>
-          
-          {hookNetworkError && (
-            <Alert variant="destructive" className="mt-4 bg-red-900/60 border-red-800 text-white">
-              <div className="flex items-center mb-2">
-                <WifiOff className="h-5 w-5 mr-2" />
-                <AlertTitle>Connection Error</AlertTitle>
-              </div>
-              <AlertDescription className="mt-2 text-white/90">
-                Unable to connect to sermon server. Please check your internet connection.
-                
-                <div className="mt-4 flex flex-col gap-2">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center">
-                      <div className={`w-3 h-3 rounded-full mr-2 ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                      <span className="text-sm">{isOnline ? 'Online' : 'Offline'}</span>
+            
+            <p className="text-lg font-medium mb-2">
+              {hookAuthError 
+                ? 'Authentication Required' 
+                : hookNetworkError 
+                  ? 'Network Connection Error' 
+                  : 'Generating sermon...'}
+            </p>
+            
+            <p className="text-sm text-white/70 mb-6">
+              {hookAuthError 
+                ? 'The sermon server requires authentication' 
+                : hookNetworkError 
+                  ? 'Unable to connect to sermon server' 
+                  : 'This may take 15-20 seconds'}
+            </p>
+            
+            <div className="w-full max-w-md mb-8">
+              <Progress 
+                value={hookNetworkError || hookAuthError ? 100 : loadingProgress} 
+                className={`h-2 ${
+                  hookAuthError 
+                    ? 'bg-yellow-900/30' 
+                    : hookNetworkError 
+                      ? 'bg-red-900/30' 
+                      : 'bg-white/10'
+                }`} 
+              />
+              {!hookNetworkError && !hookAuthError && (
+                <p className="text-xs text-white/50 mt-2 text-right">{Math.round(loadingProgress)}%</p>
+              )}
+            </div>
+            
+            {(hookNetworkError || hookAuthError) && (
+              <Alert 
+                variant="destructive" 
+                className={`mt-4 ${
+                  hookAuthError 
+                    ? 'bg-yellow-900/60 border-yellow-800' 
+                    : 'bg-red-900/60 border-red-800'
+                } text-white`}
+              >
+                <div className="flex items-center mb-2">
+                  {hookAuthError ? (
+                    <>
+                      <Lock className="h-5 w-5 mr-2" />
+                      <AlertTitle>Authentication Error</AlertTitle>
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="h-5 w-5 mr-2" />
+                      <AlertTitle>Connection Error</AlertTitle>
+                    </>
+                  )}
+                </div>
+                <AlertDescription className="mt-2 text-white/90">
+                  {hookAuthError 
+                    ? 'The sermon server requires authentication. Using sample sermons instead.' 
+                    : 'Unable to connect to sermon server. Please check your internet connection.'}
+                  
+                  <div className="mt-4 flex flex-col gap-2">
+                    {!hookAuthError && (
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center">
+                          <div className={`w-3 h-3 rounded-full mr-2 ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                          <span className="text-sm">{isOnline ? 'Online' : 'Offline'}</span>
+                        </div>
+                        
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                          onClick={checkNetworkStatus}
+                        >
+                          <Wifi className="h-3 w-3 mr-1" />
+                          Check Status
+                        </Button>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center justify-between mt-2 text-xs text-white/70">
+                      <span>API Endpoint:</span>
+                      <Button 
+                        variant="link" 
+                        size="sm" 
+                        className="h-auto p-0 text-white/90"
+                        onClick={openAPIEndpoint}
+                      >
+                        Check API <ExternalLink className="h-3 w-3 ml-1" />
+                      </Button>
                     </div>
                     
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-                      onClick={checkNetworkStatus}
-                    >
-                      <Wifi className="h-3 w-3 mr-1" />
-                      Check Status
-                    </Button>
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                      <Button 
+                        variant="outline" 
+                        className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                        onClick={handleRetry}
+                        disabled={!isOnline && !hookAuthError}
+                      >
+                        {retryAttempt > 0 ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Try Again ({retryAttempt})
+                          </>
+                        ) : (
+                          <>
+                            <RotateCw className="h-4 w-4 mr-2" />
+                            Retry
+                          </>
+                        )}
+                      </Button>
+                      
+                      <Button 
+                        variant="outline" 
+                        className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                        onClick={handleClose}
+                      >
+                        Return Home
+                      </Button>
+                    </div>
                   </div>
-                  
-                  <div className="flex items-center justify-between mt-2 text-xs text-white/70">
-                    <span>API Endpoint:</span>
-                    <Button 
-                      variant="link" 
-                      size="sm" 
-                      className="h-auto p-0 text-white/90"
-                      onClick={openAPIEndpoint}
-                    >
-                      Check API <ExternalLink className="h-3 w-3 ml-1" />
-                    </Button>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-3 mt-2">
-                    <Button 
-                      variant="outline" 
-                      className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-                      onClick={handleRetry}
-                      disabled={!isOnline}
-                    >
-                      {retryAttempt > 0 ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Try Again ({retryAttempt})
-                        </>
-                      ) : (
-                        <>
-                          <RotateCw className="h-4 w-4 mr-2" />
-                          Retry
-                        </>
-                      )}
-                    </Button>
-                    
-                    <Button 
-                      variant="outline" 
-                      className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-                      onClick={handleClose}
-                    >
-                      Return Home
-                    </Button>
-                  </div>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -467,25 +538,32 @@ const SermonPage = () => {
   console.log("- Forever mode:", foreverMode);
 
   return (
-    <SermonPlayer
-      title={sermon.title}
-      text={sermon.text}
-      audioUrl={completeAudioUrl}
-      rawAudioUrl={rawAudioUrl}
-      onClose={handleClose}
-      onGenerateNew={handleGenerateNew}
-      hasError={!!showError || audioError}
-      onPrevious={handlePrevious}
-      onNext={handleNext}
-      hasPrevious={currentIndex > 0}
-      hasNext={currentIndex < sermonHistory.length - 1 || !prefetchingNext}
-      isLoadingNext={prefetchingNext && currentIndex === sermonHistory.length - 1}
-      onForeverModeToggle={toggleForeverMode}
-      foreverMode={foreverMode}
-      onAudioEnded={handleAudioEnded}
-      currentIndex={currentIndex}
-      totalSermons={sermonHistory.length}
-    />
+    <>
+      <MetaHelmet 
+        title={metaTitle}
+        description={metaDescription}
+        path="/sermon"
+      />
+      <SermonPlayer
+        title={sermon.title}
+        text={sermon.text}
+        audioUrl={completeAudioUrl}
+        rawAudioUrl={rawAudioUrl}
+        onClose={handleClose}
+        onGenerateNew={handleGenerateNew}
+        hasError={!!showError || audioError}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+        hasPrevious={currentIndex > 0}
+        hasNext={currentIndex < sermonHistory.length - 1 || !prefetchingNext}
+        isLoadingNext={prefetchingNext && currentIndex === sermonHistory.length - 1}
+        onForeverModeToggle={toggleForeverMode}
+        foreverMode={foreverMode}
+        onAudioEnded={handleAudioEnded}
+        currentIndex={currentIndex}
+        totalSermons={sermonHistory.length}
+      />
+    </>
   );
 };
 

@@ -10,7 +10,7 @@ export interface Sermon {
   title: string;
   fullAudioUrl?: string; // We'll add this with the complete URL
   purpose?: string;      // Track the purpose for retries
-  errorType?: 'network' | 'server' | 'other'; // Error type property
+  errorType?: 'network' | 'server' | 'auth' | 'other'; // Added 'auth' error type
 }
 
 // Sample sermon data for fallback/development purposes
@@ -75,12 +75,12 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     
     console.log(`Calling API at: ${API_BASE_URL}/generate-khutab`);
     
-    // Simple direct POST request with no proxies
+    // Simple direct POST request with no proxies, like in API test page
     while (retryCount <= maxRetries) {
       try {
         console.log(`API attempt ${retryCount + 1}/${maxRetries + 1} for purpose: ${purpose}`);
         
-        // Direct fetch to API with no proxy
+        // Direct fetch to API with no proxy, similar to ApiTestPage.tsx
         const response = await fetch(`${API_BASE_URL}/generate-khutab`, {
           method: 'POST',
           headers: {
@@ -89,7 +89,6 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           },
           body: JSON.stringify({ purpose }),
           signal: effectiveSignal
-          // No mode or credentials specified - using browser defaults
         });
 
         // Clean up timeout controller if we created one
@@ -101,6 +100,15 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           const errorData = await response.text();
           const errorMessage = `Server responded with ${response.status}: ${response.statusText}. ${errorData}`;
           console.error(errorMessage);
+          
+          // Check for auth errors like in ApiTestPage.tsx
+          if (response.status === 401 || 
+              (errorData && errorData.toLowerCase().includes('unauthenticated')) || 
+              (errorData && errorData.toLowerCase().includes('authentication token')) ||
+              (errorData && errorData.toLowerCase().includes('auth'))) {
+            throw new Error("authentication_required");
+          }
+          
           throw new Error(errorMessage);
         }
 
@@ -121,8 +129,6 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
             data.fullAudioUrl = `${API_BASE_URL}${audioPath}`;
           }
           console.log("Full audio URL constructed:", data.fullAudioUrl);
-          console.log("Raw audio URL from API:", data.audio_url);
-          console.log("Complete constructed URL:", `${API_BASE_URL}${data.audio_url.startsWith('/') ? data.audio_url : '/' + data.audio_url}`);
         } else {
           console.error("No audio_url found in API response");
           data.fullAudioUrl = "";
@@ -133,14 +139,23 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
         lastError = error instanceof Error ? error : new Error('Unknown error');
         console.error(`API attempt ${retryCount + 1} failed:`, lastError);
         
-        // Check if we should retry
+        // Check for auth errors first
+        if (lastError.message === "authentication_required" || 
+            lastError.message.includes('authentication') || 
+            lastError.message.includes('Unauthenticated')) {
+          // Don't retry auth errors
+          break;
+        }
+        
+        // Check if we should retry network errors
         const isNetworkError = 
           lastError.message.includes('Failed to fetch') || 
           lastError.message.includes('Network error') ||
           lastError.message.includes('network') ||
           lastError.message.includes('AbortError') ||
           lastError.message.includes('timed out') ||
-          lastError.message.includes('abort');
+          lastError.message.includes('abort') ||
+          lastError.message.includes('Load failed');
                              
         if (isNetworkError && retryCount < maxRetries) {
           retryCount++;
@@ -162,7 +177,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     
     // Determine error type
     let errorMessage: string;
-    let errorType: 'network' | 'server' | 'other' = 'other';
+    let errorType: 'network' | 'server' | 'auth' | 'other' = 'other';
     
     if (error instanceof Error) {
       errorMessage = error.message;
@@ -172,6 +187,16 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
         errorType = 'network';
         errorMessage = 'Your device is offline. Please check your internet connection.';
       }
+      // Check for authentication errors
+      else if (
+        error.message === 'authentication_required' ||
+        error.message.includes('authentication') ||
+        error.message.includes('Unauthenticated') ||
+        error.message.includes('auth token')
+      ) {
+        errorType = 'auth';
+        errorMessage = 'Authentication required. The API requires authentication credentials.';
+      }
       // Check for other network errors
       else if (
         error.message.includes('Failed to fetch') || 
@@ -179,7 +204,8 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
         error.message.includes('network') ||
         error.message.includes('AbortError') ||
         error.message.includes('timed out') ||
-        error.message.includes('abort')
+        error.message.includes('abort') ||
+        error.message.includes('Load failed')
       ) {
         errorType = 'network';
         errorMessage = 'Network connection error. Unable to reach sermon server.';
@@ -206,6 +232,11 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
         description: errorMessage,
         duration: 8000,
       });
+    } else if (errorType === 'auth') {
+      toast.error('Authentication Error', {
+        description: 'The sermon server requires authentication. Using sample sermons instead.',
+        duration: 8000,
+      });
     } else {
       // Show general error message
       toast.error('Failed to generate sermon', {
@@ -223,7 +254,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     const customizedTitle = `${fallbackSermon.title} - ${capitalizedPurpose}`;
     
     toast.warning('Using sample sermon data as fallback', {
-      description: 'Real sermon generation is unavailable at the moment. Complete audio URL: ' + fallbackSermon.fullAudioUrl,
+      description: 'Real sermon generation is unavailable at the moment.',
       duration: 5000,
     });
     

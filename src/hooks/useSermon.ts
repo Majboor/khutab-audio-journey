@@ -8,6 +8,7 @@ export const useSermon = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [networkError, setNetworkError] = useState(false);
+  const [authError, setAuthError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [lastAttemptTime, setLastAttemptTime] = useState<number | null>(null);
   const [onlineStatus, setOnlineStatus] = useState<boolean>(isOnline());
@@ -44,19 +45,21 @@ export const useSermon = () => {
 
   // Reset network error if it's been more than 15 seconds since the last attempt
   useEffect(() => {
-    if (networkError && lastAttemptTime) {
+    if ((networkError || authError) && lastAttemptTime) {
       const now = Date.now();
       if (now - lastAttemptTime > 15000) { // 15 seconds
         setNetworkError(false);
+        setAuthError(false);
       }
     }
-  }, [networkError, lastAttemptTime]);
+  }, [networkError, authError, lastAttemptTime]);
 
   const generateSermon = async (purpose: string) => {
     try {
       setLoading(true);
       setError(null);
       setNetworkError(false);
+      setAuthError(false);
       setLastAttemptTime(Date.now());
       
       // Check if we're online before attempting to fetch
@@ -70,18 +73,39 @@ export const useSermon = () => {
         return null;
       }
       
-      // Add a timeout for the API call (15 seconds max)
+      // Use direct fetch with specific timeout similar to API test page
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout like in api.ts
       
+      console.log(`Generating sermon with purpose: ${purpose}`);
       const newSermon = await generateKhutba(purpose, controller.signal);
       clearTimeout(timeoutId);
       
+      console.log("Sermon generated:", newSermon);
+      
       // If the sermon has an error type attached, handle appropriately
-      if (newSermon && 'errorType' in newSermon && newSermon.errorType === 'network') {
-        setNetworkError(true);
+      if (newSermon && 'errorType' in newSermon) {
+        if (newSermon.errorType === 'network') {
+          setNetworkError(true);
+          toast.error('Network Connection Error', {
+            description: 'Unable to connect to sermon server. Please check your internet connection.',
+            duration: 8000,
+          });
+        } else if (newSermon.errorType === 'auth') {
+          setAuthError(true);
+          toast.error('Authentication Error', {
+            description: 'The sermon server requires authentication. Using sample sermons instead.',
+            duration: 8000,
+          });
+        } else if (newSermon.errorType === 'server') {
+          toast.error('Server Error', {
+            description: 'The sermon server is experiencing issues. Please try again later.',
+            duration: 8000,
+          });
+        }
       } else {
         setNetworkError(false);
+        setAuthError(false);
       }
       
       setSermon(newSermon);
@@ -100,12 +124,24 @@ export const useSermon = () => {
          error.message.includes('network') ||
          error.message.includes('abort') ||
          error.message.includes('time') ||
-         error.message.includes('AbortError'));
+         error.message.includes('AbortError') ||
+         error.message.includes('Load failed'));
+         
+      const isAuthError = error instanceof Error &&
+        (error.message.includes('authentication') ||
+         error.message.includes('Unauthenticated') ||
+         error.message.includes('auth'));
          
       if (isNetworkError) {
         setNetworkError(true);
         toast.error('Network Connection Error', {
           description: 'Unable to connect to sermon server. Please check your internet connection.',
+          duration: 8000,
+        });
+      } else if (isAuthError) {
+        setAuthError(true);
+        toast.error('Authentication Error', {
+          description: 'The sermon server requires authentication. Using sample sermons instead.',
           duration: 8000,
         });
       } else {
@@ -127,6 +163,7 @@ export const useSermon = () => {
       setLoading(true);
       setError(null);
       setNetworkError(false);
+      setAuthError(false);
       setLastAttemptTime(Date.now());
       
       // Check if we're online before attempting to fetch
@@ -140,25 +177,40 @@ export const useSermon = () => {
         return [];
       }
 
-      // Generate the sermons one by one (as our API doesn't support batch generation)
+      // Generate the sermons one by one with a 30-second timeout
       const sermons: Sermon[] = [];
       
       for (let i = 0; i < count; i++) {
-        // Add a timeout for each API call (15 seconds max)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
         
         try {
+          console.log(`Generating sermon ${i+1}/${count} with purpose: ${purpose}`);
           const newSermon = await generateKhutba(purpose, controller.signal);
           clearTimeout(timeoutId);
           
           if (newSermon) {
-            // If the sermon has an error type attached and it's the first one, handle appropriately
-            if (i === 0 && 'errorType' in newSermon && newSermon.errorType === 'network') {
-              setNetworkError(true);
+            // If the sermon has an error type attached
+            if ('errorType' in newSermon) {
+              if (i === 0) {
+                if (newSermon.errorType === 'network') {
+                  setNetworkError(true);
+                  toast.error('Network Connection Error', {
+                    description: 'Unable to connect to sermon server.',
+                    duration: 8000,
+                  });
+                } else if (newSermon.errorType === 'auth') {
+                  setAuthError(true);
+                  toast.error('Authentication Error', {
+                    description: 'The sermon server requires authentication. Using sample sermons instead.',
+                    duration: 8000,
+                  });
+                }
+              }
             }
             
             sermons.push(newSermon);
+            console.log(`Sermon ${i+1}/${count} generated successfully:`, newSermon.title);
           }
         } catch (innerError) {
           console.error(`Error generating sermon ${i+1}/${count}:`, innerError);
@@ -175,10 +227,15 @@ export const useSermon = () => {
                innerError.message.includes('network') ||
                innerError.message.includes('abort') ||
                innerError.message.includes('time') ||
-               innerError.message.includes('AbortError'));
+               innerError.message.includes('AbortError') ||
+               innerError.message.includes('Load failed'));
                
             if (isNetworkError) {
               setNetworkError(true);
+              toast.error('Network Connection Error', {
+                description: 'Unable to connect to sermon server. Please check your internet connection.',
+                duration: 8000,
+              });
             }
           }
           
@@ -215,7 +272,8 @@ export const useSermon = () => {
          error.message.includes('network') ||
          error.message.includes('abort') ||
          error.message.includes('time') ||
-         error.message.includes('AbortError'));
+         error.message.includes('AbortError') ||
+         error.message.includes('Load failed'));
          
       if (isNetworkError) {
         setNetworkError(true);
@@ -247,6 +305,15 @@ export const useSermon = () => {
       });
       return null;
     }
+    
+    // If there was an auth error, warn the user
+    if (authError) {
+      toast.warning('Authentication Required', {
+        description: 'The sermon server requires authentication. Using sample sermons instead.',
+        duration: 5000,
+      });
+    }
+    
     return generateSermon(purpose);
   };
 
@@ -255,6 +322,7 @@ export const useSermon = () => {
     loading,
     error,
     networkError,
+    authError,
     retryCount,
     generateSermon,
     generateBatchSermons,

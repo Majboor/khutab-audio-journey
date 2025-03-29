@@ -12,6 +12,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription } from '@/components/ui/alert-dialog';
 import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import MetaHelmet from '@/components/MetaHelmet';
 
 const categories = [
   {
@@ -133,6 +134,11 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-secondary/50 to-background">
+      <MetaHelmet 
+        title="Islamic AI Sermons - AI-Generated Islamic Teachings"
+        description="Discover a new way to connect with Islamic teachings through AI-generated sermons that inspire, educate, and uplift your spiritual journey."
+        path="/"
+      />
       <Header />
       
       <section className="relative py-20 px-4 sm:px-6 overflow-hidden">
