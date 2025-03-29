@@ -75,12 +75,12 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     
     console.log(`Calling API at: ${API_BASE_URL}/generate-khutab`);
     
-    // Simple direct POST request with no proxies
+    // Simple direct POST request with no proxies, like in API test page
     while (retryCount <= maxRetries) {
       try {
         console.log(`API attempt ${retryCount + 1}/${maxRetries + 1} for purpose: ${purpose}`);
         
-        // Direct fetch to API with no proxy
+        // Direct fetch to API with no proxy, similar to ApiTestPage.tsx
         const response = await fetch(`${API_BASE_URL}/generate-khutab`, {
           method: 'POST',
           headers: {
@@ -89,7 +89,6 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           },
           body: JSON.stringify({ purpose }),
           signal: effectiveSignal
-          // No mode or credentials specified - using browser defaults
         });
 
         // Clean up timeout controller if we created one
@@ -102,10 +101,11 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           const errorMessage = `Server responded with ${response.status}: ${response.statusText}. ${errorData}`;
           console.error(errorMessage);
           
-          // Check for auth errors
+          // Check for auth errors like in ApiTestPage.tsx
           if (response.status === 401 || 
-              (errorData && errorData.includes('Unauthenticated')) || 
-              (errorData && errorData.includes('authentication token'))) {
+              (errorData && errorData.toLowerCase().includes('unauthenticated')) || 
+              (errorData && errorData.toLowerCase().includes('authentication token')) ||
+              (errorData && errorData.toLowerCase().includes('auth'))) {
             throw new Error("authentication_required");
           }
           
@@ -129,8 +129,6 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
             data.fullAudioUrl = `${API_BASE_URL}${audioPath}`;
           }
           console.log("Full audio URL constructed:", data.fullAudioUrl);
-          console.log("Raw audio URL from API:", data.audio_url);
-          console.log("Complete constructed URL:", `${API_BASE_URL}${data.audio_url.startsWith('/') ? data.audio_url : '/' + data.audio_url}`);
         } else {
           console.error("No audio_url found in API response");
           data.fullAudioUrl = "";
@@ -149,14 +147,15 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
           break;
         }
         
-        // Check if we should retry other errors
+        // Check if we should retry network errors
         const isNetworkError = 
           lastError.message.includes('Failed to fetch') || 
           lastError.message.includes('Network error') ||
           lastError.message.includes('network') ||
           lastError.message.includes('AbortError') ||
           lastError.message.includes('timed out') ||
-          lastError.message.includes('abort');
+          lastError.message.includes('abort') ||
+          lastError.message.includes('Load failed');
                              
         if (isNetworkError && retryCount < maxRetries) {
           retryCount++;
@@ -205,7 +204,8 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
         error.message.includes('network') ||
         error.message.includes('AbortError') ||
         error.message.includes('timed out') ||
-        error.message.includes('abort')
+        error.message.includes('abort') ||
+        error.message.includes('Load failed')
       ) {
         errorType = 'network';
         errorMessage = 'Network connection error. Unable to reach sermon server.';
@@ -254,7 +254,7 @@ export const generateKhutba = async (purpose: string, signal?: AbortSignal): Pro
     const customizedTitle = `${fallbackSermon.title} - ${capitalizedPurpose}`;
     
     toast.warning('Using sample sermon data as fallback', {
-      description: 'Real sermon generation is unavailable at the moment. Complete audio URL: ' + fallbackSermon.fullAudioUrl,
+      description: 'Real sermon generation is unavailable at the moment.',
       duration: 5000,
     });
     
